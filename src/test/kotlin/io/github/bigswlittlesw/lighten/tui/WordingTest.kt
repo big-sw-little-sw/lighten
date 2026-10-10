@@ -96,11 +96,13 @@ class WordingTest {
     /** Each link problem fits a row's 40-cell note; the `L` line and its result say what happened in plain words. */
     @Test
     fun takingOverLinksIsSaidPlainly() {
-        val notes = CandidateObservation.Link.Target.entries.map(::linkTargetNote)
+        // A link to a directory outside the root can be taken over, so it has no problem note.
+        val notes = CandidateObservation.Link.Target.entries.filter { it != CandidateObservation.Link.Target.DIRECTORY }
+            .map(::linkTargetNote)
         assertEquals(
             listOf(
-                "already a link", "link points inside your home", "link points to another link", "link points to a file",
-                "link is broken", "can't read where the link points",
+                "link points inside your home", "link points to another link", "link points to a file", "link is broken",
+                "link target is unclear", "can't read where the link points",
             ),
             notes,
         )

@@ -137,7 +137,6 @@ class TakeOverTest {
             choose(ui, "broken"); enter(ui)
             val details = details(ui)
             assertTrue(details.has("Lighten can't take over ${root.resolve("home/broken")}: the link is broken"), details)
-            assertTrue(details.has("L leaves out"), details)
             ui.app.closeEditor()
         }
         assertEquals(before, tree(root))
@@ -152,11 +151,6 @@ class TakeOverTest {
             val offered = render(ui)
             // abs-link, rel-link, under-root, and the linked parents .cache and .local.
             assertTrue(offered.contains("5 directories are links you made. Press L to take them over."), offered)
-            choose(ui, "abs-link"); enter(ui)
-            val details = details(ui)
-            assertTrue(details.has("L takes over") && details.has("${root.resolve("home/.local")} → ${root.resolve("storage/local")}"), details)
-            assertTrue(details.has("${root.resolve("home/broken")}: link is broken"), details)
-            escape(ui)
             key(ui, '?')
             assertTrue(render(ui).contains("Take over every shown link you made"), render(ui))
             key(ui, '?')
@@ -178,6 +172,51 @@ class TakeOverTest {
             val plan = ConfigurationEvaluation().loadRequired(root.resolve("config.json")).plan
             assertTrue(plan.relocations.filter { it.relocation.sourcePath.fileName.toString() != "plain" }
                 .all { it.outcome == RelocationOutcome.CONVERGED }, plan.toString())
+        }
+        assertEquals(before, tree(root))
+    }
+
+    /** `f` counts and shows a row inside a linked parent as found, before and after the parent is taken over. */
+    @Test fun aRowInsideALinkedParentIsFound() {
+        val root = fixture()
+        SetupDiscoveryFixture().use { workers ->
+            val ui = browse(root, workers)
+            key(ui, 'f')
+            val filtered = render(ui)
+            for (path in listOf(".cache/uv", ".cache/pip", ".local/share/uv")) assertTrue(row(filtered, path).contains("○ $path"), filtered)
+            // The links and the linked rows: abs-link, rel-link, under-root, the five problem links, and five rows
+            // inside .cache and .local; .cache/example is hidden as usually not needed. `plain` is in the configuration.
+            assertTrue(filtered.contains("13 found on this machine, plus 1 in your configuration"), filtered)
+            choose(ui, ".cache/uv"); key(ui, ' ')
+            assertTrue(row(render(ui), ".cache/pip").contains("● .cache/pip"), render(ui))
+            ui.app.closeEditor()
+        }
+    }
+
+    /**
+     * Two relocations in the file that overlap each other do not stop a take-over that overlaps neither: Browse offers
+     * it and Configuration adds it, with one rule. Saving still reports the overlap.
+     */
+    @Test fun anOverlapAlreadyInTheDraftDoesNotRefuseATakeOver() {
+        val root = fixture()
+        Files.createDirectories(root.resolve("home/outer/inner"))
+        config(
+            root,
+            """{"source-path": "${home(root, "outer")}", "target-path": "${root.resolve("local/outer")}"},
+               {"source-path": "${home(root, "outer/inner")}", "target-path": "${root.resolve("local/inner")}"}""",
+        )
+        val before = tree(root)
+        SetupDiscoveryFixture().use { workers ->
+            val ui = browse(root, workers)
+            choose(ui, "abs-link")
+            assertTrue(render(ui).contains("Space: Take over"), render(ui))
+            key(ui, ' ')
+            val taken = render(ui)
+            assertTrue(selected(taken, "● abs-link"), taken)
+            assertFalse(taken.contains("Not added"), taken)
+            key(ui, 'L')
+            assertFalse(render(ui).contains("Skipped"), render(ui))
+            ui.app.closeEditor()
         }
         assertEquals(before, tree(root))
     }
@@ -259,6 +298,8 @@ class TakeOverTest {
             assertTrue(row(screen, ".local").contains("● .local"), screen)
             assertTrue(row(screen, ".local/share/uv").contains("which Lighten manages"), screen)
             assertTrue(row(screen, ".cache/uv").contains("which Lighten manages"), screen)
+            // Every uv row now moves with a linked parent: the heading's mark is `●`, as theirs is.
+            assertTrue(selectedGroup(screen, "● uv", "all managed"), screen)
             save(ui)
             val written = ConfigurationLoader().read(root.resolve("config.json")).file.relocations.map { it.sourcePath }
             assertEquals(listOf(home(root, "plain"), home(root, ".cache"), home(root, ".local")), written)

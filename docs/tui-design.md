@@ -640,7 +640,8 @@ screen never says "candidate" or "draft".
     is a heading at the same level as the categories.
 
   A heading has a mark (`●` all added, `◐` some, `○` none, `−` none can be
-  added) and its name in bold. In dim text, at the notes column, it shows how
+  added, a dim `●` all move with a linked parent in the configuration) and its
+  name in bold. In dim text, at the notes column, it shows how
   many of the directories under it that can be added are added (`1 of 2
   added`). When none can be added, it says the reason that they all share
   (`all managed`, `all links with problems`, `all ignored`), else `none can
@@ -711,6 +712,10 @@ screen never says "candidate" or "draft".
   not the end of a chain), so the planner finds it in sync. A target that the
   roots would derive anyway is left out of the file. Nothing on disk changes,
   and `s` in Configuration writes the change.
+  - Browse decides each row's state in one place, and
+    the marks, notes, keys and Details all read it. Its overlap rule is the one
+    Configuration uses when it adds the relocation, so a row offered as `○` is
+    never refused for an overlap between other relocations.
   - A row inside a linked parent takes over the parent, even when no list
     suggests the parent. The parent is then listed under Other directories,
     and each row inside it shows a dim `●` with `inside ~/.cache, which
@@ -718,6 +723,8 @@ screen never says "candidate" or "draft".
     inside the parent are never touched.
   - Otherwise the row is `−`, and its note says why: `link is broken`, `link
     points to another link` (a chain or a loop), `link points to a file`,
+    `link target is unclear` (a relative link whose `..` passes another link,
+    so the system finds another directory than its text names),
     `link points inside your home`, `can't read where the link points`, `link
     overlaps ~/.cache/pip` (the draft, compared as a save compares it), or
     `ignored by you` for a parent the user ignores. Details say it in a full
@@ -726,8 +733,7 @@ screen never says "candidate" or "draft".
     directories are links you made. Press L to take them over.` It counts
     relocations, so a linked parent counts once. `L` takes over each one, as
     `Space` would, and says `Took over 3. Left out 2 links with problems;
-    Enter on one says why.` A link's Details end with what `L` takes over and
-    what it leaves out, with each reason. `L` is off the help lines, which are
+    Enter on one says why.` `L` is off the help lines, which are
     full at 80 columns: the line over the list names it, and Help lists it
     under Do while it applies.
 - When both lists name a directory, your list wins: the row shows its app group
@@ -741,8 +747,9 @@ screen never says "candidate" or "draft".
   are never hidden.
 - A **count line** under the Lists lines says how many listed directories are
   found on this machine. A directory is found when the last check saw a
-  directory or a link at its path. A link counts, because a directory that
-  Lighten moved is a link. The line reads `Checking this machine…` until every
+  directory or a link at its path, or a linked parent above it. A link counts,
+  because a directory that Lighten moved is a link. A row inside a linked
+  parent counts, because it moves with the parent. The line reads `Checking this machine…` until every
   row is checked. Then it reads `12 found on this machine`, with the hidden
   count after ` · ` on the same line. This keeps the list's rows at 80x24.
 - `f` (`f: Found only`, `f: Show all`) shows only the directories that are

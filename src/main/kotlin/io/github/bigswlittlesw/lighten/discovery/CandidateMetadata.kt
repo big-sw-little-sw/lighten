@@ -113,7 +113,8 @@ internal class CandidateMetadata(private val access: Access = Access()) {
     /**
      * The link at `path` with `text`, and what is where it points. Only a link to a real directory outside the root
      * can become a relocation as it is: the planner needs the target to be a directory, not a link, and a target
-     * inside the root frees no space. The link is the user's, so a failure here describes the link and does not fail
+     * inside the root frees no space. The system must also find the link where its text, read as written, points.
+     * The link is the user's, so a failure here describes the link and does not fail
      * the observation.
      */
     private fun linkAt(anchor: Anchor, path: Path, text: Path): Link {
@@ -123,9 +124,14 @@ internal class CandidateMetadata(private val access: Access = Access()) {
             when {
                 attributes.isSymbolicLink -> Link.Target.LINK
                 !attributes.isDirectory -> Link.Target.NOT_DIRECTORY
-                pointsTo.startsWith(anchor.lexical) || access.realPath(pointsTo).startsWith(anchor.physical) ->
-                    Link.Target.INSIDE_ROOT
-                else -> Link.Target.DIRECTORY
+                else -> {
+                    val real = access.realPath(pointsTo)
+                    when {
+                        access.realPath(path) != real -> Link.Target.UNCLEAR
+                        pointsTo.startsWith(anchor.lexical) || real.startsWith(anchor.physical) -> Link.Target.INSIDE_ROOT
+                        else -> Link.Target.DIRECTORY
+                    }
+                }
             }
         } catch (_: NoSuchFileException) {
             Link.Target.MISSING

@@ -218,6 +218,8 @@ Each category's and app's name has a mark too:
 - `◐` some are added.
 - `○` none are added.
 - `−` none can be added.
+- A dim `●` all of them are inside a linked parent that is in your
+  configuration.
 
 Beside the name, Browse counts them, such as `1 of 2 added`. A link that
 Lighten can take over counts as one that can be added. When none can be
@@ -235,7 +237,8 @@ to show them. Browse never hides a directory that is in your configuration
 or that you ignore.
 
 Under the lists, a line such as `12 found on this machine` counts the
-suggested directories that exist on this machine. Press `f` to show only
+suggested directories that exist on this machine. A directory inside a
+linked parent counts too. Press `f` to show only
 those, and press `f` again to show all. Browse always shows the directories
 in your configuration. While `f` is on, `Space` on a category's or app's
 name adds only the found directories under it.
@@ -274,8 +277,8 @@ are.
 When there are links to take over, a line above the list counts them. For
 example: `3 directories are links you made. Press L to take them over.`
 Press `L` to take over all the links that Browse shows. `L` takes over each
-linked parent once. To see what `L` does before you press it, press `Enter`
-on a link. Details list what `L` takes over and what it leaves out.
+linked parent once. Then Browse says how many it took over and how many
+links it left out. Press `Enter` on a `−` link to see why.
 
 Lighten takes over only a link to a directory outside your home. If it
 cannot, the row is `−` and its note says why:
@@ -283,6 +286,8 @@ cannot, the row is `−` and its note says why:
 - `link is broken`: nothing is where the link points.
 - `link points to another link`: the target must be the directory itself.
 - `link points to a file`: the target must be a directory.
+- `link target is unclear`: it is a relative link under another link, so it
+  can point to a place other than its text says.
 - `link points inside your home`: moving it frees no space.
 - `link overlaps ~/.cache/pip`: the relocation would overlap one in your
   configuration.

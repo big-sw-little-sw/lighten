@@ -1,7 +1,7 @@
 package io.github.bigswlittlesw.lighten.application
 
 import io.github.bigswlittlesw.lighten.config.Relocation
-import io.github.bigswlittlesw.lighten.config.relocationProblem
+import io.github.bigswlittlesw.lighten.config.additionProblem
 import io.github.bigswlittlesw.lighten.discovery.CandidateDiscovery
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Link
@@ -45,13 +45,38 @@ class BrowseDraft(
     }
 
     /**
-     * A suggestion can be added when it is not in the draft, not ignored, and was seen as a directory or as missing.
-     * A kept source can be added back: it was in the draft a moment ago. A link is never added this way: see
-     * [takeOver].
+     * What Space can do for `entry`, which every Browse row, mark, note and key follows. A link is never added as a
+     * directory: it is taken over, a relocation from the link to where it points, which the planner then finds in sync.
+     * Taking over changes nothing on disk, and links inside a linked directory stay as they are.
      */
-    fun canAdd(entry: Entry): Boolean {
-        if (entry.row != null || entry.ignored) return false
-        val candidate = entry.discovery ?: return entry.sourcePath in kept && entry.sourcePath !in linkedParents
+    fun status(entry: Entry): Status {
+        entry.row?.let { return Status.InDraft(it) }
+        if (entry.ignored) return Status.Ignored
+        // Only an entry with no row is listed by its path, so the path is set.
+        val path = checkNotNull(entry.sourcePath)
+        val link = link(entry)
+        if (link != null && link.path != path) {
+            sources.indexOf(link.path).takeIf { it >= 0 }?.let { return Status.MovesWith(it, link.path) }
+        }
+        if (addable(entry, path)) return Status.CanAdd(path, null)
+        if (link == null || link.path in sources) return Status.CannotAdd
+        val problem = when {
+            link.target != Link.Target.DIRECTORY -> Problem.Target(link.target)
+            link.path in ignored -> Problem.Ignored
+            else -> overlap(Relocation(link.path, link.pointsTo))
+        }
+        return if (problem == null) Status.CanAdd(link.path, link) else Status.LinkProblem(link, problem)
+    }
+
+    /** The link at `entry`'s path or at the parent that holds it, as the last check saw it. */
+    fun link(entry: Entry): Link? = entry.discovery?.observation?.link ?: entry.sourcePath?.let { linkedParents[it] }
+
+    /**
+     * A suggestion seen as a directory or as missing can be added as a directory. A kept source can be added back: it
+     * was in the draft a moment ago, unless it is a linked parent, which is taken over instead.
+     */
+    private fun addable(entry: Entry, path: Path): Boolean {
+        val candidate = entry.discovery ?: return path in kept && path !in linkedParents
         return when (candidate.observation.kind) {
             CandidateObservation.Kind.DIRECTORY, CandidateObservation.Kind.MISSING -> true
             CandidateObservation.Kind.PENDING, CandidateObservation.Kind.LINK, CandidateObservation.Kind.REGULAR_FILE,
@@ -62,53 +87,16 @@ class BrowseDraft(
         }
     }
 
-    /** The link at `entry`'s path or at the parent that holds it, as the last check saw it. */
-    fun link(entry: Entry): Link? = entry.discovery?.observation?.link ?: entry.sourcePath?.let { linkedParents[it] }
-
     /**
-     * Taking over the link at or above `entry`: a relocation from the link to where it points, which the planner then
-     * finds in sync. It changes nothing on disk, and links inside the linked directory stay as they are. Null when
-     * there is no link to take over: `entry` is in the draft or ignored, or its linked parent is already in the draft
-     * ([coveredBy]).
-     */
-    fun takeOver(entry: Entry): TakeOver? {
-        if (entry.row != null || entry.ignored) return null
-        val link = link(entry) ?: return null
-        if (link.path in sources) return null
-        val problem = when {
-            link.target != Link.Target.DIRECTORY -> TakeOver.Problem.Target(link.target)
-            link.path in ignored -> TakeOver.Problem.Ignored
-            else -> overlap(Relocation(link.path, link.pointsTo))
-        }
-        return TakeOver(link, problem)
-    }
-
-    /**
-     * The draft row of the linked parent that holds `entry`: the relocation moves it with the parent, so it is not
-     * added on its own. Null when `entry` is in the draft, ignored, or not under a linked parent in the draft.
-     */
-    fun coveredBy(entry: Entry): Entry? {
-        if (entry.row != null || entry.ignored) return null
-        val observation = entry.discovery?.observation ?: return null
-        if (observation.kind != CandidateObservation.Kind.BLOCKED_BY_LINK) return null
-        val parent = observation.link?.path ?: return null
-        return entries().firstOrNull { it.row != null && it.sourcePath == parent }
-    }
-
-    /**
-     * Compares as written, as a save does. The relocation it names is the earlier one, so a problem between two
-     * relocations already in the draft never refuses a new one.
+     * The rule Configuration applies when it adds the relocation ([additionProblem]), so a row offered here is never
+     * refused there.
      *
      * shortcut: two targets that are one place through a link show as blocked only on the Workspace after saving. Add
      * a real-path check here when users take over links whose targets are spelled through other links.
      */
-    private fun overlap(new: Relocation): TakeOver.Problem.Overlap? {
-        if (relocationProblem(listOf(new)) != null) return TakeOver.Problem.Overlap(null)
-        val existing = relocations.mapNotNull { paths ->
-            paths.source?.let { source -> paths.target?.let { Relocation(source, it) } }
-        }
-        return existing.firstOrNull { relocationProblem(listOf(it)) == null && relocationProblem(listOf(it, new)) != null }
-            ?.let { TakeOver.Problem.Overlap(it.sourcePath) }
+    private fun overlap(new: Relocation): Problem.Overlap? {
+        val existing = relocations.mapNotNull { paths -> paths.source?.let { source -> paths.target?.let { Relocation(source, it) } } }
+        return additionProblem(existing, new)?.let { Problem.Overlap(it.source.takeIf { other -> other != new.sourcePath }) }
     }
 
     /**
@@ -122,21 +110,45 @@ class BrowseDraft(
     /** A draft relocation's source and target as the loader resolves them, each null while it cannot be resolved. */
     data class Paths(val source: Path?, val target: Path?)
 
-    /** A link and why it cannot be taken over, or a null `problem` when it can. */
-    data class TakeOver(val link: Link, val problem: Problem?) {
-        sealed interface Problem {
-            /** What is where the link points is not a real directory outside the source root. */
-            data class Target(val target: Link.Target) : Problem
+    sealed interface Status {
+        /** The relocation at `row` in the draft. */
+        data class InDraft(val row: Int) : Status
 
-            /** The user ignores the link's path. */
-            data object Ignored : Problem
+        data object Ignored : Status
 
-            /**
-             * The relocation would overlap the one from `other` in the draft, or its own source and target would
-             * overlap when `other` is null.
-             */
-            data class Overlap(val other: Path?) : Problem
+        /** Inside the linked `parent`, the relocation at `row` in the draft: it moves with it, so it is not added alone. */
+        data class MovesWith(val row: Int, val parent: Path) : Status
+
+        /**
+         * Space adds a relocation from `source`. With a `link`, it takes the link over, `source` is the link's path and
+         * the target is where it points; without one, the roots derive the target.
+         */
+        data class CanAdd(val source: Path, val link: Link?) : Status
+
+        /** The link at or above the entry can't be taken over. */
+        data class LinkProblem(val link: Link, val problem: Problem) : Status
+
+        /** A file, a path that can't be read, or one not checked yet. */
+        data object CannotAdd : Status
+    }
+
+    /** Why a link can't be taken over. */
+    sealed interface Problem {
+        /** What is where the link points is not a real directory outside the source root. */
+        data class Target(val target: Link.Target) : Problem {
+            init {
+                require(target != Link.Target.DIRECTORY) { "A link to a directory outside the root can be taken over" }
+            }
         }
+
+        /** The user ignores the link's path. */
+        data object Ignored : Problem
+
+        /**
+         * The relocation would overlap the one from `other` in the draft, or its own source and target would overlap
+         * when `other` is null.
+         */
+        data class Overlap(val other: Path?) : Problem
     }
 }
 

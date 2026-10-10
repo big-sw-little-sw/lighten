@@ -695,24 +695,29 @@ internal const val IGNORED_NOTE = "ignored by you"
 internal const val ALREADY_A_LINK = "already a link"
 internal fun insideLink(parent: String) = "inside $parent, which is a link"
 internal fun insideManaged(parent: String) = "inside $parent, which Lighten manages"
+// A link to a directory outside the root has no problem to show (`BrowseDraft.Problem.Target` refuses it).
+private const val LINK_TO_DIRECTORY = "a link to a directory outside the root can be taken over"
 /** A row's note for a link that can't be taken over because of what is where it points. */
 internal fun linkTargetNote(target: CandidateObservation.Link.Target) = when (target) {
-    CandidateObservation.Link.Target.DIRECTORY -> ALREADY_A_LINK
+    CandidateObservation.Link.Target.DIRECTORY -> error(LINK_TO_DIRECTORY)
     CandidateObservation.Link.Target.INSIDE_ROOT -> "link points inside your home"
     CandidateObservation.Link.Target.LINK -> "link points to another link"
     CandidateObservation.Link.Target.NOT_DIRECTORY -> "link points to a file"
     CandidateObservation.Link.Target.MISSING -> "link is broken"
+    CandidateObservation.Link.Target.UNCLEAR -> "link target is unclear"
     CandidateObservation.Link.Target.UNREADABLE -> "can't read where the link points"
 }
 /** `other` is the relocation it would overlap, or null when the link points to a directory that holds the link. */
 internal fun linkOverlapsNote(other: String?) = if (other == null) "link points to its own parent" else "link overlaps $other"
 /** Why a link can't be taken over, in Details: the end of [cannotTakeOver]'s sentence. */
 internal fun linkTargetProblem(target: CandidateObservation.Link.Target) = when (target) {
-    CandidateObservation.Link.Target.DIRECTORY -> "it is already a link to a directory"
+    CandidateObservation.Link.Target.DIRECTORY -> error(LINK_TO_DIRECTORY)
     CandidateObservation.Link.Target.INSIDE_ROOT -> "it points inside your home, so moving it frees no space"
     CandidateObservation.Link.Target.LINK -> "it points to another link, and a target must be a directory"
     CandidateObservation.Link.Target.NOT_DIRECTORY -> "it points to a file, not a directory"
     CandidateObservation.Link.Target.MISSING -> "the link is broken"
+    CandidateObservation.Link.Target.UNCLEAR ->
+        "it is a relative link under another link, so it may point elsewhere than its text says"
     CandidateObservation.Link.Target.UNREADABLE -> "Lighten can't read where it points"
 }
 internal const val LINK_IGNORED = "you ignore it"
@@ -729,10 +734,6 @@ internal fun movesWithParent(parent: String) =
 /** `written` is the link's own text, when it differs from where it points: a relative link. */
 internal fun linkLine(link: String, pointsTo: String, written: String?) =
     "Link: $link → $pointsTo" + (written?.let { " (written as $it)" } ?: "")
-internal const val L_TAKES_OVER = "L takes over"
-internal const val L_LEAVES_OUT = "L leaves out"
-internal fun linkPointsTo(link: String, target: String) = "$link → $target"
-internal fun linkLeftOut(link: String, why: String) = "$link: $why"
 /** The line over Browse's list while `L` has links to take over; `n` counts the relocations it adds. */
 internal fun linksYouMade(n: Int) =
     if (n == 1) "1 directory is a link you made. Press L to take it over."

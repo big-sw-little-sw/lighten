@@ -61,7 +61,10 @@ class CandidateMetadataTest {
                 physical.resolve("broken"), physical.resolve("inside-parent"),
                 // Where the links point, spelled as discovery spells them: under the alias.
                 outside, alias.resolve("missing"), alias.resolve("inside"))
-        val reader = guarded(alias, allowed, resolvable = setOf(alias, outside))
+        val reader = guarded(
+            alias, allowed,
+            resolvable = setOf(alias, outside, alias.resolve("link"), alias.resolve("inside"), alias.resolve("inside-parent")),
+        )
         val anchor = reader.anchor(alias)
         val directory = reader.inspect(anchor, alias.resolve("inside"), 1)
         assertState(directory, Kind.DIRECTORY)
@@ -136,6 +139,27 @@ class CandidateMetadataTest {
         assertEquals(root.resolve(".local"), observed(".local/share/uv").link?.path)
         assertEquals(Kind.DIRECTORY, observed("real").kind)
         assertEquals(null, observed("real").link)
+    }
+
+    /**
+     * Under a root reached through a link, a relative link's `..` leads where the system finds it, not where its text
+     * reads as written. The planner reads the text as written, so the link's target is unclear and can't be taken over.
+     */
+    @Test fun aRelativeLinkThatLeavesAnAliasedRootIsUnclear() {
+        val base = temporary.toRealPath()
+        val physical = Files.createDirectories(base.resolve("a/b/home"))
+        Files.createDirectories(base.resolve("other"))
+        Files.createDirectories(base.resolve("a/b/other"))
+        val alias = Files.createSymbolicLink(base.resolve("h"), physical)
+        Files.createSymbolicLink(physical.resolve("up"), Path.of("../other"))
+        Files.createSymbolicLink(physical.resolve("plain"), base.resolve("other"))
+        val reader = CandidateMetadata()
+        val anchor = reader.anchor(alias)
+        val up = checkNotNull(reader.inspect(anchor, alias.resolve("up"), 1).link)
+        // As written, `h/up` → `../other` is `base/other`; the system finds `base/a/b/other`.
+        assertEquals(base.resolve("other"), up.pointsTo)
+        assertEquals(Link.Target.UNCLEAR, up.target)
+        assertEquals(Link.Target.DIRECTORY, reader.inspect(anchor, alias.resolve("plain"), 1).link?.target)
     }
 
     @Test fun aLinkWhoseTargetCannotBeReadIsStillALink() {

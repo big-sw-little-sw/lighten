@@ -48,6 +48,15 @@ internal fun relocationProblem(relocations: List<Relocation>): RelocationProblem
     return null
 }
 
+/**
+ * The first problem that adding `new` to `relocations` makes, as [relocationProblem] reports it: `new` alone, or `new`
+ * with one of them, reported against that one. A problem among `relocations` themselves is left out, so it never
+ * refuses an unrelated addition; saving reports it.
+ */
+internal fun additionProblem(relocations: List<Relocation>, new: Relocation): RelocationProblem? =
+    relocationProblem(listOf(new)) ?: relocations.filter { relocationProblem(listOf(it)) == null }
+        .firstNotNullOfOrNull { relocationProblem(listOf(it, new)) }
+
 /** Whether one path contains the other, compared absolute and normalized. */
 internal fun intersects(left: Path, right: Path): Boolean {
     val first = normalized(left)

@@ -1,5 +1,6 @@
 package io.github.bigswlittlesw.lighten.application
 
+import io.github.bigswlittlesw.lighten.application.BrowseDraft.Status
 import io.github.bigswlittlesw.lighten.config.CandidateCatalog
 import io.github.bigswlittlesw.lighten.config.CandidateDefinition
 import io.github.bigswlittlesw.lighten.config.CandidateParser
@@ -38,7 +39,7 @@ class BrowseDraftTest {
             // Each suggestion appears once: the one in the draft is not listed again. Both lists name .m2.
             assertEquals(result.candidates.size - 1, entries.size - 3)
             assertTrue(entries.drop(3).none { it.sourcePath == root.resolve(".m2") || it.row != null })
-            assertFalse(draft.canAdd(entries[0]), "already in the draft")
+            assertEquals(Status.InDraft(0), draft.status(entries[0]), "already in the draft")
         }
     }
 
@@ -53,70 +54,71 @@ class BrowseDraftTest {
                 val observation = CandidateObservation(path, kind, null, result.generation, Instant.now(), listOf())
                 val seen = CandidateDiscovery.Result(result.generation, result.request, result.sources,
                     listOf(CandidateDiscovery.Candidate(candidate.catalog, observation, candidate.ancestors)), result.rootFailure)
-                val entry = BrowseDraft(root, listOf(), seen).entries().single()
+                val draft = BrowseDraft(root, listOf(), seen)
                 val eligible = kind == CandidateObservation.Kind.DIRECTORY || kind == CandidateObservation.Kind.MISSING
-                assertEquals(eligible, BrowseDraft(root, listOf(), seen).canAdd(entry), kind.toString())
+                assertEquals(eligible, draft.status(draft.entries().single()) is Status.CanAdd, kind.toString())
             }
         }
     }
 
-    /** Only a link to a real directory outside the source root can be taken over; the problem names why not. */
+    /**
+     * Only a link to a real directory outside the source root can be taken over, with where it points as the target;
+     * the problem names why not. A link is never added as a directory.
+     */
     @Test fun aLinkCanBeTakenOverOnlyWhenItPointsToADirectoryOutside() {
         val root = Path.of("/home/u")
         for (target in Link.Target.entries) {
             val link = Link(root.resolve("cache"), Path.of("/data/cache"), Path.of("/data/cache"), target)
             val draft = BrowseDraft(root, listOf(), result(root, linkRow(root.resolve("cache"), link)))
-            val takeOver = draft.takeOver(draft.entries().single())
-            val expected = if (target == Link.Target.DIRECTORY) null else BrowseDraft.TakeOver.Problem.Target(target)
-            assertEquals(BrowseDraft.TakeOver(link, expected), takeOver, target.toString())
-            assertFalse(draft.canAdd(draft.entries().single()), "a link is taken over, never added")
+            val expected = if (target == Link.Target.DIRECTORY) Status.CanAdd(link.path, link)
+            else Status.LinkProblem(link, BrowseDraft.Problem.Target(target))
+            assertEquals(expected, draft.status(draft.entries().single()), target.toString())
         }
     }
 
     /**
      * A take-over is refused when it would overlap a relocation in the draft, naming that relocation: one inside the
      * link, one around it, or one with the same target. Overlaps between relocations already in the draft do not
-     * refuse it.
+     * refuse it, as they do not refuse an addition in Configuration.
      */
     @Test fun aTakeOverThatOverlapsTheDraftNamesTheRelocation() {
         val root = Path.of("/home/u")
         val link = Link(root.resolve(".cache"), Path.of("/data/cache"), Path.of("/data/cache"), Link.Target.DIRECTORY)
         val child = linkRow(root.resolve(".cache/pip"), link, CandidateObservation.Kind.BLOCKED_BY_LINK)
-        fun problem(vararg relocations: BrowseDraft.Paths): BrowseDraft.TakeOver.Problem? {
-            val draft = BrowseDraft(root, relocations.toList(), result(root, child))
-            return checkNotNull(draft.takeOver(draft.entries().single { it.sourcePath == root.resolve(".cache/pip") })).problem
+        fun status(vararg relocations: BrowseDraft.Paths, path: Path = root.resolve(".cache/pip"), seen: CandidateDiscovery.Result = result(root, child)): Status {
+            val draft = BrowseDraft(root, relocations.toList(), seen)
+            return draft.status(draft.entries().single { it.sourcePath == path })
         }
+        fun overlap(other: Path?) = Status.LinkProblem(link, BrowseDraft.Problem.Overlap(other))
         val inside = root.resolve(".cache/pip")
-        assertEquals(null, problem(BrowseDraft.Paths(root.resolve("other"), Path.of("/data/other"))))
-        assertEquals(BrowseDraft.TakeOver.Problem.Overlap(root), problem(BrowseDraft.Paths(root, Path.of("/elsewhere/u"))))
-        // A child of the linked parent in the configuration: the take-over would contain it.
-        val draft = BrowseDraft(root, listOf(BrowseDraft.Paths(inside, Path.of("/local/pip"))), result(root, child))
-        assertNull(draft.takeOver(draft.entries().single()), "a row in the draft is not taken over")
+        assertEquals(Status.CanAdd(link.path, link), status(BrowseDraft.Paths(root.resolve("other"), Path.of("/data/other"))))
+        assertEquals(overlap(root), status(BrowseDraft.Paths(root, Path.of("/elsewhere/u"))))
+        // A child of the linked parent in the configuration: its own row is in the draft, and a sibling's take-over
+        // would contain it.
+        assertEquals(Status.InDraft(0), status(BrowseDraft.Paths(inside, Path.of("/local/pip"))))
         val sibling = linkRow(root.resolve(".cache/uv"), link, CandidateObservation.Kind.BLOCKED_BY_LINK)
-        val withSibling = BrowseDraft(root, listOf(BrowseDraft.Paths(inside, Path.of("/local/pip"))), result(root, child, sibling))
         assertEquals(
-            BrowseDraft.TakeOver.Problem.Overlap(inside),
-            withSibling.takeOver(withSibling.entries().single { it.sourcePath == root.resolve(".cache/uv") })?.problem,
+            overlap(inside),
+            status(BrowseDraft.Paths(inside, Path.of("/local/pip")), path = root.resolve(".cache/uv"), seen = result(root, child, sibling)),
         )
         // Another relocation's target is where the link points.
-        assertEquals(
-            BrowseDraft.TakeOver.Problem.Overlap(root.resolve("owner")),
-            problem(BrowseDraft.Paths(root.resolve("owner"), Path.of("/data/cache"))),
-        )
+        assertEquals(overlap(root.resolve("owner")), status(BrowseDraft.Paths(root.resolve("owner"), Path.of("/data/cache"))))
         // Two relocations in the draft that overlap each other leave the take-over alone.
         assertEquals(
-            null,
-            problem(BrowseDraft.Paths(root.resolve("a"), Path.of("/x/a")), BrowseDraft.Paths(root.resolve("a/b"), Path.of("/y/b"))),
+            Status.CanAdd(link.path, link),
+            status(BrowseDraft.Paths(root.resolve("a"), Path.of("/x/a")), BrowseDraft.Paths(root.resolve("a/b"), Path.of("/y/b"))),
         )
         // A link that points to a directory holding the link overlaps itself.
         val around = Link(root.resolve(".cache"), Path.of("/home"), Path.of("/home"), Link.Target.DIRECTORY)
         val aroundDraft = BrowseDraft(root, listOf(), result(root, linkRow(root.resolve(".cache"), around)))
-        assertEquals(BrowseDraft.TakeOver.Problem.Overlap(null), aroundDraft.takeOver(aroundDraft.entries().single())?.problem)
+        assertEquals(
+            Status.LinkProblem(around, BrowseDraft.Problem.Overlap(null)), aroundDraft.status(aroundDraft.entries().single()),
+        )
     }
 
     /**
-     * Once the linked parent is in the draft, the directories under it are covered by it, and the parent's own row
-     * knows its link. Taken out again, it is kept and can be taken over, not added as a plain directory.
+     * Once the linked parent is in the draft, the directories under it move with it, and the parent's own row knows its
+     * link. Taken out again, it is kept and can be taken over, not added as a plain directory.
      */
     @Test fun aLinkedParentInTheDraftCoversItsChildren() {
         val root = Path.of("/home/u")
@@ -125,17 +127,15 @@ class BrowseDraftTest {
         val seen = result(root, linkRow(parent.resolve("pip"), link, CandidateObservation.Kind.BLOCKED_BY_LINK))
         val draft = BrowseDraft(root, listOf(BrowseDraft.Paths(parent, Path.of("/data/cache"))), seen)
         val (row, child) = draft.entries()
-        assertEquals(row, draft.coveredBy(child))
-        assertNull(draft.takeOver(child))
+        assertEquals(Status.MovesWith(0, parent), draft.status(child))
         assertEquals(link, draft.link(row))
         val kept = BrowseDraft(root, listOf(), seen, kept = setOf(parent))
-        val keptRow = kept.entries().single { it.sourcePath == parent }
-        assertFalse(kept.canAdd(keptRow))
-        assertEquals(BrowseDraft.TakeOver(link, null), kept.takeOver(keptRow))
+        assertEquals(Status.CanAdd(parent, link), kept.status(kept.entries().single { it.sourcePath == parent }))
         val ignored = BrowseDraft(root, listOf(), seen, ignored = setOf(parent))
+        assertEquals(Status.Ignored, ignored.status(ignored.entries().single { it.sourcePath == parent }))
         assertEquals(
-            BrowseDraft.TakeOver.Problem.Ignored,
-            ignored.takeOver(ignored.entries().single { it.sourcePath == parent.resolve("pip") })?.problem,
+            Status.LinkProblem(link, BrowseDraft.Problem.Ignored),
+            ignored.status(ignored.entries().single { it.sourcePath == parent.resolve("pip") }),
         )
     }
 

@@ -37,6 +37,11 @@ data class CandidateObservation(
             NOT_DIRECTORY,
             /** Nothing: the link is broken. */
             MISSING,
+            /**
+             * A directory, but the system finds another one: a relative link whose `..` passes a link above it. The
+             * planner reads the link's text as written, so it would plan the wrong target.
+             */
+            UNCLEAR,
             UNREADABLE,
         }
     }

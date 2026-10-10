@@ -33,7 +33,7 @@ import io.github.bigswlittlesw.lighten.config.WhenOnlyTargetExists
 import io.github.bigswlittlesw.lighten.config.WhenSourceAndTargetDirectoriesExist
 import io.github.bigswlittlesw.lighten.config.defaultArchiveRoot
 import io.github.bigswlittlesw.lighten.config.derivedTarget
-import io.github.bigswlittlesw.lighten.config.relocationProblem
+import io.github.bigswlittlesw.lighten.config.additionProblem
 import io.github.bigswlittlesw.lighten.config.resolvePath
 import io.github.bigswlittlesw.lighten.discovery.CandidateDiscovery
 import io.github.bigswlittlesw.lighten.fs.PathText
@@ -523,16 +523,19 @@ internal class ConfigurationView private constructor(
         val source = addition.source
         val target = addition.target?.takeIf { it != (derived(source) as? Resolved.Found)?.path }
         val row = RelocationFile(displayPath(source), target?.let(::displayPath))
-        val relocations = (draft.relocations + row).mapNotNull { relocation ->
-            val resolved = resolve(relocation)
-            val path = (resolved.source as? Resolved.Found)?.path
-            val target = (resolved.target as? Resolved.Found)?.path
-            if (path == null || target == null) null else Relocation(path, target)
-        }
-        // The new row is last, so a problem between two rows names the earlier one, the relocation it overlaps.
-        relocationProblem(relocations)?.let { return Refusal(it.message, it.source.takeIf { other -> other != source }) }
+        // Browse decides with the same rule, so a row it offers is not refused here for an unrelated overlap.
+        resolvedRelocation(row)?.let { new -> additionProblem(draft.relocations.mapNotNull(::resolvedRelocation), new) }
+            ?.let { return Refusal(it.message, it.source.takeIf { other -> other != source }) }
         edit(draft.relocations + row, origins + null)
         return null
+    }
+
+    /** A row as the loader would read it, or null while its source or target can't be resolved. */
+    private fun resolvedRelocation(row: RelocationFile): Relocation? {
+        val resolved = resolve(row)
+        val source = (resolved.source as? Resolved.Found)?.path ?: return null
+        val target = (resolved.target as? Resolved.Found)?.path ?: return null
+        return Relocation(source, target)
     }
 
     /**
