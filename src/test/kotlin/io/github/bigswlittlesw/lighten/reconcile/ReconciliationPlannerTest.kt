@@ -283,7 +283,7 @@ class ReconciliationPlannerTest {
         assertEquals("broken source link has no target directory", blockReason(plan(Relocation(source, target)), 0))
 
         // The target can appear between the two observations. The link then looks broken while the target is a directory.
-        val brokenLink = PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.ABSENT)
+        val brokenLink = PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.ABSENT, symlinkText = target)
         val repair = ReconciliationPlanner().plan(listOf(
             RelocationState(Relocation(source, target), brokenLink, PathObservation(PathState.DIRECTORY)),
         ))

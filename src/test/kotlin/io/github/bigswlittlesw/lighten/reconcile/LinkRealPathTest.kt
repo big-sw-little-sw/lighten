@@ -114,6 +114,29 @@ class LinkRealPathTest {
     }
 
     /**
+     * A broken link whose text, read as written, names the target, but is not the target exactly: its `..` passes
+     * another link, so the system finds nothing. Lighten did not write it, so it blocks and never replaces it.
+     */
+    @Test fun aBrokenLinkWrittenOtherwiseThanTheTargetIsNeverReplaced() {
+        val base = temporary.toRealPath()
+        val home = Files.createDirectories(base.resolve("home"))
+        val target = Files.createDirectories(home.resolve("t"))
+        Files.createDirectories(base.resolve("other/sub"))
+        Files.createSymbolicLink(home.resolve("hop"), base.resolve("other/sub"))
+        // As written, `home/hop/../t` is `home/t`; the system finds `other/t`, which does not exist.
+        val source = Files.createSymbolicLink(home.resolve("x"), Path.of("hop/../t"))
+        val before = diskTree(base)
+        val plan = plan(listOf(Relocation(source, target)))
+        assertTrue(plan.actions().none { it is ReconciliationAction.ReplaceSymlink }, plan.toString())
+        assertEquals(
+            "$source is a broken link written as hop/../t, not as $target, so Lighten does not replace it. " +
+                "Fix or remove the link, then check again",
+            blockReason(plan.relocations.single()),
+        )
+        assertEquals(before, diskTree(base))
+    }
+
+    /**
      * `base/home` holds `.local-heavy` → `base/disk`, `.cache/JetBrains` → `../.local-heavy/cache/JetBrains` and
      * `.cargo` → `base/home/.local-heavy/cargo`. `disk/cargo` holds a file.
      */

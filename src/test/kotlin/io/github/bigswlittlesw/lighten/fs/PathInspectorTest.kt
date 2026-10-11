@@ -32,7 +32,7 @@ class PathInspectorTest {
         val correct = root.resolve("correct")
         Files.createSymbolicLink(correct, expected)
         val correctObservation = inspector.inspect(correct)
-        assertEquals(PathObservation(PathState.SYMLINK, expected, SymlinkTargetAvailability.EXISTS, symlinkRealPath = real), correctObservation)
+        assertEquals(PathObservation(PathState.SYMLINK, expected, SymlinkTargetAvailability.EXISTS, symlinkRealPath = real, symlinkText = expected), correctObservation)
         assertEquals(RelocationSourceState.CORRECT_SYMLINK, correctObservation.sourceStateForTarget(real))
 
         // Its text differs, but it leads to the same directory through another link.
@@ -48,7 +48,7 @@ class PathInspectorTest {
 
         val broken = root.resolve("broken")
         Files.createSymbolicLink(broken, root.resolve("missing"))
-        assertEquals(PathObservation(PathState.SYMLINK, root.resolve("missing"), SymlinkTargetAvailability.ABSENT), inspector.inspect(broken))
+        assertEquals(PathObservation(PathState.SYMLINK, root.resolve("missing"), SymlinkTargetAvailability.ABSENT, symlinkText = root.resolve("missing")), inspector.inspect(broken))
         assertEquals(RelocationSourceState.BROKEN_SYMLINK, inspector.inspect(broken).sourceStateForTarget(real))
 
         // Links that loop can't be followed.
@@ -61,7 +61,7 @@ class PathInspectorTest {
     fun treatsAnInaccessibleSymlinkDestinationAsInaccessible(@TempDir root: Path) {
         val expected = root.resolve("local")
         val observation = PathObservation(PathState.SYMLINK, expected,
-                SymlinkTargetAvailability.INACCESSIBLE)
+                SymlinkTargetAvailability.INACCESSIBLE, symlinkText = expected)
 
         assertEquals(RelocationSourceState.INACCESSIBLE, observation.sourceStateForTarget(expected))
     }
@@ -69,10 +69,10 @@ class PathInspectorTest {
     @Test
     fun aLinkHasARealPathExactlyWhenItsDestinationExists(@TempDir root: Path) {
         assertThrows<IllegalArgumentException> {
-            PathObservation(PathState.SYMLINK, root, SymlinkTargetAvailability.EXISTS)
+            PathObservation(PathState.SYMLINK, root, SymlinkTargetAvailability.EXISTS, symlinkText = root)
         }
         assertThrows<IllegalArgumentException> {
-            PathObservation(PathState.SYMLINK, root, SymlinkTargetAvailability.ABSENT, symlinkRealPath = root)
+            PathObservation(PathState.SYMLINK, root, SymlinkTargetAvailability.ABSENT, symlinkRealPath = root, symlinkText = root)
         }
     }
 }

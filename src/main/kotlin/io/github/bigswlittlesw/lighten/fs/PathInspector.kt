@@ -15,20 +15,23 @@ import java.nio.file.attribute.BasicFileAttributes
 class PathInspector {
     fun inspect(path: Path): PathObservation {
         if (!Files.isSymbolicLink(path)) return inspectNonLink(path)
-        val target = try {
-            path.toAbsolutePath().parent.resolve(Files.readSymbolicLink(path)).normalize()
+        val text = try {
+            Files.readSymbolicLink(path)
         } catch (exception: IOException) {
             return PathObservation(PathState.INACCESSIBLE)
         }
+        val target = path.toAbsolutePath().parent.resolve(text).normalize()
         // The system follows every link on the way, and resolves `..` after it, which the text alone can't show.
         val real = try {
             path.toRealPath()
         } catch (exception: NoSuchFileException) {
-            return PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.ABSENT)
+            return PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.ABSENT, symlinkText = text)
         } catch (exception: IOException) {
-            return PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.INACCESSIBLE)
+            return PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.INACCESSIBLE, symlinkText = text)
         }
-        return PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.EXISTS, symlinkRealPath = real)
+        return PathObservation(
+            PathState.SYMLINK, target, SymlinkTargetAvailability.EXISTS, symlinkRealPath = real, symlinkText = text,
+        )
     }
 
     private fun inspectNonLink(path: Path): PathObservation = try {

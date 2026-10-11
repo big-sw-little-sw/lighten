@@ -62,7 +62,9 @@ class ReconciliationPlanner {
             // A link to somewhere else looks broken while its disk is not mounted, so it is blocked like any other.
             RelocationSourceState.BROKEN_SYMLINK -> if (!linksToTarget(state)) blocked(state, wrongLinkReason(state))
             else when (state.target.state) {
-                PathState.DIRECTORY -> outcome(state, listOf(replacementLink(state)))
+                PathState.DIRECTORY ->
+                    if (state.source.symlinkText == target) outcome(state, listOf(replacementLink(state)))
+                    else blocked(state, writtenOtherwiseReason(state))
                 PathState.ABSENT -> blocked(state, PathText("broken source link has no target directory"))
                 PathState.FILE, PathState.SYMLINK, PathState.INACCESSIBLE, PathState.OTHER -> unsupportedTarget(state)
             }
@@ -233,6 +235,17 @@ private fun wrongLinkReason(state: RelocationState): PathText {
             "Remove the link, or set its target to where it points",
     )
 }
+
+/**
+ * A broken source link whose text, read as written, names the target, but is not the target exactly: a relative link,
+ * or one whose `..` passes another link, which the system resolves elsewhere. Lighten writes a link as the target
+ * exactly, so this link is not one it made, and it is never replaced.
+ */
+private fun writtenOtherwiseReason(state: RelocationState): PathText = PathText(
+    // A symlink observation always has its text.
+    state.relocation.sourcePath, " is a broken link written as ", state.source.symlinkText!!, ", not as ",
+    state.relocation.targetPath, ", so Lighten does not replace it. Fix or remove the link, then check again",
+)
 
 /**
  * Whether a broken source link's text names the target. A broken link has no real path, so only its text can say
