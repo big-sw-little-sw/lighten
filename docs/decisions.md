@@ -111,6 +111,14 @@ Only the rule for the state observed now decides. **Only target** decides when t
 - `[skipped: naming which app owns a path, add with #5/#117]`
 - `[skipped: an ignored count in the Workspace summary rows, add when users miss it]`
 
+### Browse takes over links the user made, as they are
+
+`Space` or `L` in Browse takes over a link that the user made: it adds a relocation from the link to where the link points, so the next plan finds it in sync. Nothing on disk changes, and only `s` writes the configuration. The word is "take over", because "adopt" already names Keep target. A row inside a linked parent takes over the parent, once, also when no list suggests it. Links inside the parent are never touched. Only a link to a real directory outside the source root can be taken over: the planner needs the target to be a directory, not another link, and a target in the home frees no space. The target is the link's text against its parent, as the planner reads a source link, so a chain is refused, not followed, and so is a relative link whose `..` passes another link, which the system resolves elsewhere. Browse and Configuration check a new relocation's overlap with one rule: against each relocation in the draft, not against overlaps already among them, which the save reports. A link that changes after Browse took it over is blocked by the planner, as any link to somewhere else is. To tell these cases apart, discovery reads what is where a link points, within the same time limit, but it still never lists a directory. A row inside a linked parent counts as found, so `f` shows it. A heading whose rows all move with a linked parent in the configuration has a dim `●`, as its rows do. "Inside the home" means inside the source root. Space on a heading takes over links too, each linked parent once. Why: users who had moved directories by hand saw `already a link` and could not manage them. (#245)
+
+- `[skipped: taking over or repairing a broken link, add when users ask to manage broken links from Browse]`
+- `[skipped: comparing a take-over's target with the draft by real path, add when users take over links whose targets are spelled through other links]`
+- `[skipped: Details for a heading that list each directory's reason, add when users miss why a group can't be added]`
+
 ### The name is Lighten
 
 The tool is Lighten and the command is `lighten`. The file is `~/.lighten.json` with the key `"lighten"`. Names on disk start with `.lighten-`. Lighten does not accept earlier names. Why: the old name was long and a trademark used it, and no release had used it. (#174)
@@ -321,7 +329,7 @@ The rules are in [`tui-design.md`](tui-design.md), which holds only the current 
   - `[skipped: own words for errors the OS reports only as a reason (no space left, read-only filesystem), add when a user hits one]`
 - **Configuration** has labels next to its fields, and it opens Browse on a first run. ([§7](tui-design.md#7-configuration), #114, #189)
   - `[skipped: selecting the first added relocation when the first-run Browse closes, add when users miss where their picks went]`
-- **Browse** is a list of categories, apps and directories with plain marks. It always shows its lists, removes old results while it checks, and can show only what it finds on this machine. ([§8](tui-design.md#8-browse), #115, #165, #190)
+- **Browse** is a list of categories, apps and directories with plain marks. It always shows its lists, removes old results while it checks, and can show only what it finds on this machine. It takes over links the user made, and a heading with nothing to add says why. ([§8](tui-design.md#8-browse), #115, #165, #190, #245)
   - `[skipped: showing previous results while checking again, add when re-checks are slow enough that blank rows annoy users]`
   - `[skipped: per-row list history, add when users need to know a list used to suggest a row]`
   - `[skipped: PageUp/PageDown in Browse, add when suggestion lists grow past a few screens]`

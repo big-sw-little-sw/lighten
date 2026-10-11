@@ -105,6 +105,11 @@ A list of directories that Browse suggests to move. The built-in list is part of
 Code: `CandidateCatalog`; a suggestion is a candidate (`CandidateDefinition`). The user's list is the shared list (`CandidateSource.Kind.SHARED`, `LightenConfiguration.sharedList`). The built-in list is `CandidateCatalog.BUNDLED`.
 _Avoid_: candidate list (in user-facing text)
 
+**Take over**:
+To add a link that the user made by hand to the configuration as it is: a relocation from the link to where the link points. Nothing on disk changes, and the next plan finds the relocation in sync. In Browse, `Space` takes over one link and `L` takes over every link shown. A directory inside a linked parent is taken over with its parent.
+Code: `BrowseDraft.takeOver`, `BrowseDraft.TakeOver`, `BrowseAction.TakeOverAll`; what discovery saw is `CandidateObservation.Link`.
+_Avoid_: adopt (that is **Keep target**), import, track
+
 **Category, app**:
 The two levels that Browse uses to group suggestions: first a category, for example Python, then an app, for example uv.
 Code: `CandidateDefinition.category`, `CandidateDefinition.app`.

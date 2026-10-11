@@ -153,8 +153,8 @@ only colors that are safe.
   the Help for the choice keys says so.
   - Progress (Review, Applying, Results): `○` not run yet, spinner running,
     `✔` done, `✖` failed.
-  - Included or not (Browse): `●` added, `○` not added, `⊘` ignored by you,
-    `−` can't be added. On a category or app heading, `◐` means some are added.
+  - Included or not (Browse): `●` added, a dim `●` moved with its linked
+    parent, `○` not added, `⊘` ignored by you, `−` can't be added. On a category or app heading, `◐` means some are added.
     `⊘` is the empty circle with a line through it: not included, on purpose.
     Its shape is different from every other mark, and its note says `ignored
     by you`, so it is clear without color. A group row gets a mark only when
@@ -640,9 +640,13 @@ screen never says "candidate" or "draft".
     is a heading at the same level as the categories.
 
   A heading has a mark (`●` all added, `◐` some, `○` none, `−` none can be
-  added) and its name in bold. In dim text, at the notes column, it shows how
+  added, a dim `●` all move with a linked parent in the configuration) and its
+  name in bold. In dim text, at the notes column, it shows how
   many of the directories under it that can be added are added (`1 of 2
-  added`), or `can't add`. The indents make headings easy to see without
+  added`). When none can be added, it says the reason that they all share
+  (`all managed`, `all links with problems`, `all ignored`), else `none can
+  be added`. Each directory's Details give its own reason. The indents make
+  headings easy to see without
   colour. A path uses at most 28 cells, and the notes column starts after it,
   for headings and rows. At 80 columns this leaves 40 cells for a note, beside
   the scrollbar:
@@ -654,8 +658,8 @@ screen never says "candidate" or "draft".
   ┃     ○ .local/share/uv/tools                                     ┃
   ┃   ○ pixi                            0 of 1 added                ┃
   ┃     ○ .pixi/envs                    not created yet             ┃
-  ┃ ○ Other directories                 0 of 1 added                ┃
-  ┃     − link-cache                    already a link              ┃
+  ┃ − Other directories                 all links with problems     ┃
+  ┃     − link-cache                    link is broken              ┃
   ```
 
   Categories and apps keep the order in which they first appear, with the
@@ -685,17 +689,53 @@ screen never says "candidate" or "draft".
   it.
 - Space on a `○` or `◐` heading (a category or an app) adds every shown
   directory under it that can be added. It adds each one as it would one by
-  one, so it skips a directory that overlaps. Space on a `●` heading removes
+  one, so it skips a directory that overlaps. A link that can be taken over
+  counts as one that can be added, and a linked parent is taken over once.
+  Space on a `●` heading removes
   them all. Space on a `−` heading does nothing. Each directory is one unsaved
   change. When Lighten skipped rows, a line says so: `Added 3. Skipped 1 that
   overlaps ~/.cache.`, `Skipped 1 that can't be added.`, `Skipped 1 you
   ignored.` A heading's `1 of 2 added` does not count ignored rows. Enter on a
   heading does nothing.
 - Row notes, in plain words: `checking…`, `not created yet`, `already a link`,
-  `not a directory`, `can't read: <reason>`, `usually not needed`. A note that
-  only says that the directory is not there yet (`not created yet`,
-  `checking…`) is dim. `already a link` and `usually not needed` are in the text
-  color. Problems (`can't read: …`, `not a directory`) are in the warning color.
+  `inside ~/.cache, which is a link`, `inside ~/.cache, which Lighten
+  manages`, `not a directory`, `can't read: <reason>`, `usually not needed`,
+  and a link's problem (below). A note that only says that the directory is
+  not there yet (`not created yet`, `checking…`) is dim. Problems are in the
+  warning color, the other notes in the text color. A note names a parent with
+  `~`, as every path on screen does.
+- **Take over** a link that the user made. Discovery reads where each link
+  points, at the row's path or at the first linked parent above it, but never
+  lists what is there. A link to a real directory outside the source root can
+  be taken over: the row is `○`, and `Space` (`Space: Take over`) adds a
+  relocation from the link to where it points (its text against its parent,
+  not the end of a chain), so the planner finds it in sync. A target that the
+  roots would derive anyway is left out of the file. Nothing on disk changes,
+  and `s` in Configuration writes the change.
+  - Browse decides each row's state in one place, and
+    the marks, notes, keys and Details all read it. Its overlap rule is the one
+    Configuration uses when it adds the relocation, so a row offered as `○` is
+    never refused for an overlap between other relocations.
+  - A row inside a linked parent takes over the parent, even when no list
+    suggests the parent. The parent is then listed under Other directories,
+    and each row inside it shows a dim `●` with `inside ~/.cache, which
+    Lighten manages`. `Space` on such a row takes the parent out again. Links
+    inside the parent are never touched.
+  - Otherwise the row is `−`, and its note says why: `link is broken`, `link
+    points to another link` (a chain or a loop), `link points to a file`,
+    `link target is unclear` (a relative link whose `..` passes another link,
+    so the system finds another directory than its text names),
+    `link points inside your home`, `can't read where the link points`, `link
+    overlaps ~/.cache/pip` (the draft, compared as a save compares it), or
+    `ignored by you` for a parent the user ignores. Details say it in a full
+    sentence. Lighten never repairs a link.
+  - While a shown link can be taken over, a line over the list says `3
+    directories are links you made. Press L to take them over.` It counts
+    relocations, so a linked parent counts once. `L` takes over each one, as
+    `Space` would, and says `Took over 3. Left out 2 links with problems;
+    Enter on one says why.` `L` is off the help lines, which are
+    full at 80 columns: the line over the list names it, and Help lists it
+    under Do while it applies.
 - When both lists name a directory, your list wins: the row shows its app group
   and advice. When both lists name an app with different categories, your
   list's category wins. When your list names an app without a category, the app
@@ -707,8 +747,9 @@ screen never says "candidate" or "draft".
   are never hidden.
 - A **count line** under the Lists lines says how many listed directories are
   found on this machine. A directory is found when the last check saw a
-  directory or a link at its path. A link counts, because a directory that
-  Lighten moved is a link. The line reads `Checking this machine…` until every
+  directory or a link at its path, or a linked parent above it. A link counts,
+  because a directory that Lighten moved is a link. A row inside a linked
+  parent counts, because it moves with the parent. The line reads `Checking this machine…` until every
   row is checked. Then it reads `12 found on this machine`, with the hidden
   count after ` · ` on the same line. This keeps the list's rows at 80x24.
 - `f` (`f: Found only`, `f: Show all`) shows only the directories that are

@@ -109,7 +109,7 @@ internal fun actionLabel(action: ReconciliationAction): String = when (action) {
 internal fun observationNote(observation: CandidateObservation): String = when (observation.kind) {
     CandidateObservation.Kind.PENDING -> "checking…"
     CandidateObservation.Kind.DIRECTORY -> "directory"
-    CandidateObservation.Kind.LINK -> "already a link"
+    CandidateObservation.Kind.LINK -> ALREADY_A_LINK
     CandidateObservation.Kind.MISSING -> "not created yet"
     CandidateObservation.Kind.REGULAR_FILE, CandidateObservation.Kind.OTHER -> "not a directory"
     CandidateObservation.Kind.INACCESSIBLE ->
@@ -124,7 +124,6 @@ private fun reasonWords(reason: CandidateObservation.Reason): String = when (rea
     CandidateObservation.Reason.IO_ERROR -> "read error"
     CandidateObservation.Reason.CHANGED -> "it changed while checking"
     CandidateObservation.Reason.DEADLINE -> "took too long"
-    CandidateObservation.Reason.SYMLINK_EXCLUDED -> "it is a link"
     CandidateObservation.Reason.ALIAS_UNCERTAINTY -> "its real location is unclear"
     CandidateObservation.Reason.NOT_DIRECTORY -> "not a directory"
     CandidateObservation.Reason.MISSING -> "missing"
@@ -564,7 +563,8 @@ internal const val PURPOSE_CONFIGURATION =
         "Suggestion list, is merged with the built-in one. Saving changes nothing on disk."
 internal const val PURPOSE_BROWSE =
     "Suggestions from the built-in list and your list. Space adds a directory to the configuration or takes it out; " +
-        "the file changes only when you save. Anything missing: press Esc, then a to type it."
+        "the file changes only when you save. On a link you made, Space takes it over as it is; nothing on disk changes. " +
+        "Anything missing: press Esc, then a to type it."
 /** Over Browse when it opens by itself on a new file: picking, and typing for those who would rather. */
 internal val FIRST_BROWSE_NOTE = listOf("Pick what to move: Space adds.", "Rather type a path yourself? Press Esc, then a.")
 internal const val DETAILS_NAME = "Details"
@@ -648,7 +648,11 @@ internal const val NONE_FOUND = "None found on this machine. Press f to show eve
 internal const val OTHER_DIRECTORIES = "Other directories"
 internal const val OTHER_TOOLS = "Other tools"
 internal fun addedCount(added: Int, of: Int) = "$added of $of added"
-internal const val CANNOT_ADD_ANY = "can't add"
+// A heading none of whose directories can be added: the reason they all share, else the general one.
+internal const val ALL_IGNORED = "all ignored"
+internal const val ALL_MANAGED = "all managed"
+internal const val ALL_LINK_PROBLEMS = "all links with problems"
+internal const val NONE_CAN_BE_ADDED = "none can be added"
 // Browse's marks say whether a directory is included. An empty circle means not included; a filled one means included.
 internal const val ADDED_MARK = "●"
 internal const val NOT_ADDED_MARK = "○"
@@ -686,6 +690,72 @@ internal fun groupAdded(added: Int, overlapped: List<String?>, unaddable: Int, i
     return listOfNotNull("Added $added.", overlap, cannot, skippedIgnored, skippedNotFound).joinToString(" ")
 }
 internal const val IGNORED_NOTE = "ignored by you"
+
+// Taking over a link that the user made: Lighten adds it as a relocation as it is, and nothing on disk changes.
+internal const val ALREADY_A_LINK = "already a link"
+internal fun insideLink(parent: String) = "inside $parent, which is a link"
+internal fun insideManaged(parent: String) = "inside $parent, which Lighten manages"
+// A link to a directory outside the root has no problem to show (`BrowseDraft.Problem.Target` refuses it).
+private const val LINK_TO_DIRECTORY = "a link to a directory outside the root can be taken over"
+/** A row's note for a link that can't be taken over because of what is where it points. */
+internal fun linkTargetNote(target: CandidateObservation.Link.Target) = when (target) {
+    CandidateObservation.Link.Target.DIRECTORY -> error(LINK_TO_DIRECTORY)
+    CandidateObservation.Link.Target.INSIDE_ROOT -> "link points inside your home"
+    CandidateObservation.Link.Target.LINK -> "link points to another link"
+    CandidateObservation.Link.Target.NOT_DIRECTORY -> "link points to a file"
+    CandidateObservation.Link.Target.MISSING -> "link is broken"
+    CandidateObservation.Link.Target.UNCLEAR -> "link target is unclear"
+    CandidateObservation.Link.Target.UNREADABLE -> "can't read where the link points"
+}
+/** `other` is the relocation it would overlap, or null when the link points to a directory that holds the link. */
+internal fun linkOverlapsNote(other: String?) = if (other == null) "link points to its own parent" else "link overlaps $other"
+/** Why a link can't be taken over, in Details: the end of [cannotTakeOver]'s sentence. */
+internal fun linkTargetProblem(target: CandidateObservation.Link.Target) = when (target) {
+    CandidateObservation.Link.Target.DIRECTORY -> error(LINK_TO_DIRECTORY)
+    CandidateObservation.Link.Target.INSIDE_ROOT -> "it points inside your home, so moving it frees no space"
+    CandidateObservation.Link.Target.LINK -> "it points to another link, and a target must be a directory"
+    CandidateObservation.Link.Target.NOT_DIRECTORY -> "it points to a file, not a directory"
+    CandidateObservation.Link.Target.MISSING -> "the link is broken"
+    CandidateObservation.Link.Target.UNCLEAR ->
+        "it is a relative link under another link, so it may point elsewhere than its text says"
+    CandidateObservation.Link.Target.UNREADABLE -> "Lighten can't read where it points"
+}
+internal const val LINK_IGNORED = "you ignore it"
+internal fun linkOverlaps(other: String?) =
+    if (other == null) "it points to a directory that holds the link" else "it would overlap $other in your configuration"
+internal fun cannotTakeOver(link: String, why: String) = "Lighten can't take over $link: $why."
+internal fun takesOverLink(target: String) =
+    "Space takes over this link: Lighten adds it with $target as its target. Nothing on disk changes."
+internal fun takesOverParent(parent: String, target: String) =
+    "Space takes over $parent: Lighten adds it with $target as its target. This directory moves with it. " +
+        "Nothing on disk changes, and links inside $parent stay as they are."
+internal fun movesWithParent(parent: String) =
+    "$parent is in the configuration, so this directory moves with it. Space takes $parent out."
+/** `written` is the link's own text, when it differs from where it points: a relative link. */
+internal fun linkLine(link: String, pointsTo: String, written: String?) =
+    "Link: $link → $pointsTo" + (written?.let { " (written as $it)" } ?: "")
+/** The line over Browse's list while `L` has links to take over; `n` counts the relocations it adds. */
+internal fun linksYouMade(n: Int) =
+    if (n == 1) "1 directory is a link you made. Press L to take it over."
+    else "$n directories are links you made. Press L to take them over."
+internal const val TAKE_OVER_ALL =
+    "Take over every shown link you made, as it is; nothing on disk changes, and saving writes the change"
+internal const val TAKE_OVER_LINK = "Add the link as it is, with its target where it points; nothing on disk changes"
+internal const val REMOVE_LINKED_PARENT = "Take its linked parent out of the configuration; saving writes the change"
+/** After `L`: how many it took over, the overlaps it skipped, as [groupAdded] names them, and the links it left out. */
+internal fun tookOverLinks(added: Int, overlapped: List<String?>, problems: Int): String {
+    val overlap = when {
+        overlapped.isEmpty() -> null
+        overlapped.size == 1 -> "Skipped 1 that overlaps " + (overlapped.single() ?: "where it points") + "."
+        else -> "Skipped ${overlapped.size} that overlap directories in the configuration."
+    }
+    val left = when (problems) {
+        0 -> null
+        1 -> "Left out 1 link with a problem; Enter on it says why."
+        else -> "Left out $problems links with problems; Enter on one says why."
+    }
+    return listOfNotNull("Took over $added.", overlap, left).joinToString(" ")
+}
 internal const val BROWSE_IGNORE = "Ignore the directory: Lighten won't manage or add it; saving writes the change"
 internal const val BROWSE_STOP_IGNORING = "Stop ignoring the directory; saving writes the change"
 internal const val IGNORED_IN_BROWSE =
@@ -712,7 +782,6 @@ internal val MISSING_SUGGESTION = listOf(
 )
 internal const val SIZE_AND_OWNERSHIP = "Size: not estimated · Ownership: not evaluated"
 internal fun observedLine(time: String) = "Observed: $time"
-internal fun linkText(path: String) = "Link text: $path · Target not checked"
 internal fun observationDetail(detail: String, path: String) = "Note: $detail · $path"
 internal fun suggestedAround(path: String) = "Also suggested, around it: $path"
 internal fun suggestedInside(path: String) = "Also suggested, inside it: $path"

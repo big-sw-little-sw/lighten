@@ -636,8 +636,8 @@ class BrowseTest {
     }
 
     /**
-     * A heading none of whose directories can be added reads `−` and `can't add`, a category's as an app's, and
-     * Space there does nothing.
+     * A heading none of whose directories can be added reads `−` and the reason they share, a category's as an app's,
+     * and Space there does nothing. A link into the home can't be taken over.
      */
     @Test fun aHeadingWithNothingToAddCannotAdd() {
         val root = fixture()
@@ -653,7 +653,7 @@ class BrowseTest {
             for (heading in listOf("Linked", "Links")) {
                 chooseGroup(ui, heading)
                 val before = render(ui)
-                assertTrue(selectedGroup(before, "− $heading", "can't add"), before)
+                assertTrue(selectedGroup(before, "− $heading", "all links with problems"), before)
                 assertFalse(before.contains("Space:"), before)
                 key(ui, ' ')
                 assertEquals(before, render(ui))
@@ -967,7 +967,8 @@ class BrowseTest {
         """.trimIndent(),
     )
 
-    private companion object {
+    /** Driving Browse; [TakeOverTest] uses them too. */
+    internal companion object {
         fun ui(root: Path, workers: SetupDiscoveryFixture): HeadlessTui {
             val ui = HeadlessTui(LightenSession(root.resolve("config.json")), discoveryFactory = workers::get); key(ui, 'i'); return ui
         }
@@ -1004,7 +1005,7 @@ class BrowseTest {
         fun chooseGroup(ui: HeadlessTui, name: String) {
             ui.press(KeyCode.HOME)
             repeat(100) {
-                if (render(ui).lines().any { line -> line.matches(Regex(".*❯ *[●◐○−] " + Pattern.quote(name) + " +(\\d+ of \\d+ added|can't add).*")) }) return
+                if (render(ui).lines().any { line -> line.matches(Regex(".*❯ *[●◐○−] " + Pattern.quote(name) + " +(\\d+ of \\d+ added|all [a-z ]+|none can be added).*")) }) return
                 down(ui)
             }
             fail<Unit>("Could not focus " + name + "\n" + render(ui))

@@ -13,6 +13,7 @@ import io.github.bigswlittlesw.lighten.reconcile.CopyDifference
 import io.github.bigswlittlesw.lighten.reconcile.ReconciliationAction
 import io.github.bigswlittlesw.lighten.reconcile.SpecialFileKind
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
@@ -90,6 +91,30 @@ class WordingTest {
         assertEquals("not a directory", note(CandidateObservation.Kind.REGULAR_FILE))
         assertEquals("can't read: permission denied", note(CandidateObservation.Kind.INACCESSIBLE, CandidateObservation.Reason.ACCESS_DENIED))
         assertEquals("can't read", note(CandidateObservation.Kind.INACCESSIBLE))
+    }
+
+    /** Each link problem fits a row's 40-cell note; the `L` line and its result say what happened in plain words. */
+    @Test
+    fun takingOverLinksIsSaidPlainly() {
+        // A link to a directory outside the root can be taken over, so it has no problem note.
+        val notes = CandidateObservation.Link.Target.entries.filter { it != CandidateObservation.Link.Target.DIRECTORY }
+            .map(::linkTargetNote)
+        assertEquals(
+            listOf(
+                "link points inside your home", "link points to another link", "link points to a file", "link is broken",
+                "link target is unclear", "can't read where the link points",
+            ),
+            notes,
+        )
+        assertTrue((notes + insideLink("~/.cache") + insideManaged("~/.cache")).all { it.length <= 40 }, notes.toString())
+        assertEquals("1 directory is a link you made. Press L to take it over.", linksYouMade(1))
+        assertEquals("3 directories are links you made. Press L to take them over.", linksYouMade(3))
+        assertEquals("Took over 2.", tookOverLinks(2, listOf(), 0))
+        assertEquals(
+            "Took over 1. Skipped 1 that overlaps ~/a. Left out 2 links with problems; Enter on one says why.",
+            tookOverLinks(1, listOf("~/a"), 2),
+        )
+        assertEquals("Took over 0. Left out 1 link with a problem; Enter on it says why.", tookOverLinks(0, listOf(), 1))
     }
 
     @Test

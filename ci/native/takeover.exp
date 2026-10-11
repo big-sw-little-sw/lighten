@@ -1,0 +1,83 @@
+#!/usr/bin/expect -f
+# Drives Browse on a pty to take over links made by hand, then saves.
+#
+#   expect ci/native/takeover.exp <logfile> <command...>
+#
+# The command must open the Workspace for an existing configuration whose suggestion list names the links.
+# e opens Configuration, b opens Browse, End shows the list's last rows, L takes over every link it can, Esc
+# goes back to the list, s and y replace the file, and q quits. The pty is 120x40, the size render.py starts at. The log gets a
+# "@@RESIZE 40x120@@" marker (the same size) after Browse checks the directories, after L and after the save, so
+# render.py prints those three screens. Prints one line of key=value results; exit status 0 when every step passed.
+# Treat pty output as bytes so the log keeps the TUI's UTF-8 intact under any locale.
+encoding system iso8859-1
+set logfile [lindex $argv 0]
+set cmd [join [lrange $argv 1 end] " "]
+set lf [open $logfile w]
+fconfigure $lf -translation binary
+log_user 0
+set stty_init "rows 40 cols 120"
+set env(PS1) "PROMPT> "
+set result ""
+set failed 0
+
+# Reads output for secs seconds into the log.
+proc pump {secs} {
+  global lf
+  set deadline [expr {[clock milliseconds] + int($secs * 1000)}]
+  while {[clock milliseconds] < $deadline} {
+    set timeout 0.1
+    expect {
+      -re {.+} { puts -nonewline $lf $expect_out(0,string) }
+      eof { return }
+      timeout { }
+    }
+  }
+}
+
+proc snapshot {} {
+  global lf
+  puts -nonewline $lf "\n@@RESIZE 40x120@@\n"
+}
+
+spawn -noecho /bin/sh
+set timeout 10
+expect "PROMPT> "
+send "$cmd; echo EXITCODE=\$?\r"
+set timeout 20
+expect {
+  -re {LIGHTEN} { puts -nonewline $lf $expect_out(buffer); append result "workspace=ok " }
+  timeout { puts "workspace=timeout(FAIL)"; exit 1 }
+}
+pump 1
+# Discovery has five seconds for each path; the links here answer at once.
+foreach {key secs} {e 1 b 3} {
+  send $key
+  pump $secs
+}
+# End: the list's last rows, where the suggestions under Other directories are.
+send "\033\[F"
+pump 1
+snapshot
+send "L"
+pump 1
+snapshot
+foreach key {"\033" s y} {
+  send $key
+  pump 1
+}
+pump 2
+snapshot
+puts -nonewline $lf "\n@@QUIT@@\n"
+send "q"
+set timeout 8
+expect {
+  -re {EXITCODE=([0-9]+)} {
+    puts -nonewline $lf $expect_out(buffer)
+    append result "exit=$expect_out(1,string) "
+    if {$expect_out(1,string) != 0} { set failed 1 }
+  }
+  timeout { append result "exit=hang(FAIL) "; set failed 1; send "\003" }
+}
+close $lf
+puts [string trim $result]
+exit $failed

@@ -543,6 +543,79 @@ check "target has the source's contents" [ "$want" = "$(tree "$L/x/y/app")" ]
 converges
 end
 
+# --- links the user made: what Browse's take-over writes is in sync, and a chain is not
+
+# Browse takes over a link with the target its text names against its parent. A relocation written that way is in
+# sync, for an absolute and a relative link. One whose target is the end of a chain, or the link in the middle of it,
+# is blocked: so Browse refuses a chain.
+begin link-targets "a link's own target is in sync; a chain is blocked whichever end is the target"
+mkdir -p "$L/abs" "$L/rel" "$L/end"
+ln -s "$L/abs" "$H/abs"
+ln -s ../local/rel "$H/rel"
+ln -s "$L/end" "$L/hop"
+ln -s "$L/hop" "$H/chain"
+ln -s "$L/hop" "$H/chain-end"
+config "$(rel abs)" "$(rel rel)" "{\"source-path\": \"$H/chain\", \"target-path\": \"$L/hop\"}" \
+  "{\"source-path\": \"$H/chain-end\", \"target-path\": \"$L/end\"}"
+before=$(snapshot)
+run plan
+check "plan exits 0" exits 0
+check "absolute and relative links are in sync: $(jq -c '[.relocations[0,1].actions[].type]' "$out")" \
+  j 'all(.relocations[0,1].actions[]; .type == "no-op")'
+check "a link to a link as the target is blocked" j '.relocations[2].actions[0].type == "blocked"'
+check "the end of the chain as the target is blocked" j '.relocations[3].actions[0].type == "blocked"'
+refused
+check "nothing on disk changed" [ "$before" = "$(snapshot)" ]
+end
+
+# Built under a short path, so the paths in notes fit the row and are not under the account's home.
+short=$(mktemp -d /tmp/lighten-e2e.XXXXXX)
+begin take-over "Browse's L takes over links made by hand, absolute, relative and a linked parent; plan then finds them in sync" "$short"
+S=$C/storage
+mkdir -p "$S/abs" "$S/rel" "$S/end" "$S/cache/uv" "$S/pip-elsewhere" "$S/uv-elsewhere" "$L/under" "$H/real"
+ln -s "$S/abs" "$H/abs"
+ln -s ../storage/rel "$H/rel"
+ln -s "$L/under" "$H/under"
+ln -s "$S/end" "$S/hop"
+ln -s "$S/hop" "$H/chain"
+ln -s "$S/gone" "$H/broken"
+ln -s "$H/real" "$H/inside"
+# A linked parent, with a relative and an absolute link inside it that must stay as they are.
+ln -s "$S/cache" "$H/.cache"
+ln -s ../pip-elsewhere "$S/cache/pip"
+ln -s "$S/uv-elsewhere" "$S/cache/uv-link"
+printf '{"directories": [%s]}\n' \
+  "$(printf '{"path": "%s"},' abs rel under chain broken inside .cache/pip .cache/uv-link | sed 's/,$//')" > "$C/list.json"
+printf '{"lighten": {"source-root": "%s", "target-root": "%s", "suggestion-list": "%s", "ignored-source-paths": ["%s/ignored"]}}\n' \
+  "$H" "$L" "$C/list.json" "$H" > "$C/config.json"
+disk() { (cd "$C" && find home local storage \( -type l -printf '%M %p -> %l\n' \) -o -printf '%M %p\n' | LC_ALL=C sort); }
+before=$(disk)
+line=$(TERM=xterm-256color expect "$here/takeover.exp" "$C/takeover.log" "$binary" -c "$C/config.json")
+check "TUI ran ($line)" [ $? -eq 0 ]
+python3 "$here/render.py" "$C/takeover.log" 120x40 > "$C/screens.txt"
+awk '/^--- /{n++} {print > (dir "/screen-" n ".txt")}' dir="$C" "$C/screens.txt"
+for want in "4 directories are links you made. Press L to take them over." "already a link" "which is a link" \
+    "link is broken" "link points to another link" "link points inside your home"; do
+  check "Browse shows '$want'" grep -qF "$want" "$C/screen-1.txt"
+done
+check "L says what it did" grep -qF "Took over 4. Left out 3 links with problems" "$C/screen-2.txt"
+check "the Workspace has nothing to change" grep -qF "Saved. Nothing needs to change." "$C/screen-3.txt"
+check "nothing on disk changed in the TUI" [ "$before" = "$(disk)" ]
+got=$(jq -c '[.lighten.relocations[] | [.["source-path"], .["target-path"]]] | sort' "$C/config.json")
+want=$(jq -nc --arg H "$H" --arg S "$S" '[[$H+"/.cache", $S+"/cache"], [$H+"/abs", $S+"/abs"], [$H+"/rel", $S+"/rel"], [$H+"/under", null]]')
+check "the file has each link with where it points, and no target the roots derive ($got)" [ "$got" = "$want" ]
+run plan
+check "plan --json: all in sync ($(jq -c '[.relocations[].actions[].type]' "$out"))" \
+  j '(.relocations | length) == 4 and all(.relocations[].actions[]; .type == "no-op") and (.blocked or .conflicts | not)'
+converges
+check "nothing on disk changed after plan and apply" [ "$before" = "$(disk)" ]
+check "the links inside the linked parent stay" \
+  [ "$(readlink "$S/cache/pip") $(readlink "$S/cache/uv-link")" = "../pip-elsewhere $S/uv-elsewhere" ]
+end
+mkdir -p "$results/take-over"
+cp "$C"/*.* "$results/take-over/"
+rm -rf "$short"
+
 # --- the TUI and plan --json tell the same story
 
 # Built under a short path, so no row is cut off at the list's width.

@@ -2,6 +2,7 @@ package io.github.bigswlittlesw.lighten.discovery
 
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Diagnostic
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Kind
+import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Link
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Reason
 import java.io.IOException
 import java.nio.file.AccessDeniedException
@@ -14,7 +15,8 @@ import java.time.Instant
 
 /**
  * Reads only the real path of the source root, the attributes of each path without following links, and the text
- * of a link. It never lists a directory or looks at where a link points. It checks the paths again to find a path
+ * of a link. For a link it also reads what is where the link points, so Browse can say whether a relocation can take
+ * the link over as it is. It never lists a directory. It checks the paths under the root again to find a path
  * replaced while it reads. This can miss a change: Java's path-based calls cannot lock a path against a concurrent
  * rename.
  */
@@ -66,12 +68,9 @@ internal class CandidateMetadata(private val access: Access = Access()) {
                 guards.add(Guard(current, attributes))
                 checkGuards(guards)
                 val leaf = i == relative.nameCount - 1
-                val target = if (leaf && attributes.isSymbolicLink) access.readLink(current) else null
+                val text = if (attributes.isSymbolicLink) access.readLink(current) else null
                 val kind = when {
-                    attributes.isSymbolicLink -> {
-                        diagnostics.add(Diagnostic(current, Reason.SYMLINK_EXCLUDED, "Link destination not inspected"))
-                        if (leaf) Kind.LINK else Kind.BLOCKED_BY_LINK
-                    }
+                    attributes.isSymbolicLink -> if (leaf) Kind.LINK else Kind.BLOCKED_BY_LINK
                     !leaf && !attributes.isDirectory -> {
                         diagnostics.add(
                             Diagnostic(current, Reason.NOT_DIRECTORY, "Intermediate component is not a directory"),
@@ -85,7 +84,9 @@ internal class CandidateMetadata(private val access: Access = Access()) {
                 }
                 checkGuards(guards)
                 checkAnchor(anchor)
-                return observation(candidate, kind, target, generation, diagnostics)
+                // Where the link points is outside the walk, so the guards do not cover it.
+                val link = text?.let { linkAt(anchor, anchor.lexical.resolve(relative.subpath(0, i + 1)), it) }
+                return observation(candidate, kind, link, generation, diagnostics)
             }
             error("unreachable: a candidate strictly below the root has at least one name")
         } catch (e: IOException) {
@@ -107,6 +108,39 @@ internal class CandidateMetadata(private val access: Access = Access()) {
             candidate, if (failure is Changed) Kind.UNKNOWN else Kind.INACCESSIBLE, null, generation,
             diagnostics + Diagnostic(candidate, reason, readFailure(failure)),
         )
+    }
+
+    /**
+     * The link at `path` with `text`, and what is where it points. Only a link to a real directory outside the root
+     * can become a relocation as it is: the planner needs the target to be a directory, not a link, and a target
+     * inside the root frees no space. The system must also find the link where its text, read as written, points.
+     * The link is the user's, so a failure here describes the link and does not fail
+     * the observation.
+     */
+    private fun linkAt(anchor: Anchor, path: Path, text: Path): Link {
+        val pointsTo = path.parent.resolve(text).normalize()
+        val target = try {
+            val attributes = access.attributes(pointsTo)
+            when {
+                attributes.isSymbolicLink -> Link.Target.LINK
+                !attributes.isDirectory -> Link.Target.NOT_DIRECTORY
+                else -> {
+                    val real = access.realPath(pointsTo)
+                    when {
+                        access.realPath(path) != real -> Link.Target.UNCLEAR
+                        pointsTo.startsWith(anchor.lexical) || real.startsWith(anchor.physical) -> Link.Target.INSIDE_ROOT
+                        else -> Link.Target.DIRECTORY
+                    }
+                }
+            }
+        } catch (_: NoSuchFileException) {
+            Link.Target.MISSING
+        } catch (_: IOException) {
+            Link.Target.UNREADABLE
+        } catch (_: SecurityException) {
+            Link.Target.UNREADABLE
+        }
+        return Link(path, text, pointsTo, target)
     }
 
     private fun checkAnchor(anchor: Anchor) {
@@ -152,5 +186,5 @@ private fun same(before: BasicFileAttributes, after: BasicFileAttributes): Boole
             && (!before.isSymbolicLink || before.lastModifiedTime() == after.lastModifiedTime())
 
 private fun observation(
-    path: Path, kind: Kind, target: Path?, generation: Long, diagnostics: List<Diagnostic>,
-): CandidateObservation = CandidateObservation(path, kind, target, generation, Instant.now(), diagnostics.toList())
+    path: Path, kind: Kind, link: Link?, generation: Long, diagnostics: List<Diagnostic>,
+): CandidateObservation = CandidateObservation(path, kind, link, generation, Instant.now(), diagnostics.toList())
