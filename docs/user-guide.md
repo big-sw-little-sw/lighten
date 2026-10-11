@@ -258,9 +258,9 @@ list gives a caution about these tools.
 
 You can move a directory to storage yourself and put a link in its place.
 Browse shows such a directory with the note `already a link`. Lighten can
-take over the link: it adds a relocation from the link to where the link
-points. Nothing on disk changes. After you save, the Workspace shows the
-relocation as `[In sync]`.
+take over the link: it adds a relocation from the link to the directory
+that it leads to. Nothing on disk changes. After you save, the Workspace
+shows the relocation as `[In sync]`.
 
 - Press `Space` on a `○` row with the note `already a link` to take it over.
 - Press `Space` again to take it out.
@@ -280,14 +280,21 @@ Press `L` to take over all the links that Browse shows. `L` takes over each
 linked parent once. Then Browse says how many it took over and how many
 links it left out. Press `Enter` on a `−` link to see why.
 
-Lighten takes over only a link to a directory outside your home. If it
-cannot, the row is `−` and its note says why:
+A link can lead to its directory through other links. For example,
+`~/.cache/JetBrains` links to `~/.local-heavy/cache/JetBrains`, and
+`~/.local-heavy` links to `/local/disk`. Lighten follows each link to the
+directory at the end and makes that directory the target:
+`/local/disk/cache/JetBrains`. The links stay as you wrote them. Details
+show both, such as `Link: ~/.cache/JetBrains → /local/disk/cache/JetBrains
+(written as ../.local-heavy/cache/JetBrains)`. If a link on the way later
+leads somewhere else, the Workspace shows the relocation as `[Blocked]`.
 
-- `link is broken`: nothing is where the link points.
-- `link points to another link`: the target must be the directory itself.
+Lighten takes over only a link that leads to a directory outside your home.
+If it cannot, the row is `−` and its note says why:
+
+- `link is broken`: nothing is where the link leads, or the links go in a
+  circle.
 - `link points to a file`: the target must be a directory.
-- `link target is unclear`: it is a relative link under another link, so it
-  can point to a place other than its text says.
 - `link points inside your home`: moving it frees no space.
 - `link overlaps ~/.cache/pip`: the relocation would overlap one in your
   configuration.
@@ -532,7 +539,8 @@ Lighten looks at the source and the target. Then:
 - **Neither exists:** Lighten creates an empty target and links the source
   to it (`[Link]`).
 - **The source already links to the target:** Lighten does nothing
-  (`[In sync]`).
+  (`[In sync]`). This is also true when the link leads to the target
+  through other links. Lighten never changes such a link.
 - **The source links somewhere else:** Lighten does nothing (`[Blocked]`).
   The link can belong to another program, so Lighten never replaces it.
   Details say where it points, such as `~/.cache/tool links to /data/tool,

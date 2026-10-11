@@ -85,7 +85,7 @@ class ConfigurationEvaluation(
                 .takeIf { choicesFor(source).isNotEmpty() }
             PlanRelocationItem(
                 relocation, state.source, state.target, relocationPlan,
-                state.source.sourceStateForTarget(relocation.targetPath),
+                state.sourceState(),
                 decision, source in choiceAvoidsDirectory,
             )
         }.sortedBy { it.badge().priority }

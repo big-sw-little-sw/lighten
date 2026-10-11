@@ -46,7 +46,7 @@ class BrowseDraft(
 
     /**
      * What Space can do for `entry`, which every Browse row, mark, note and key follows. A link is never added as a
-     * directory: it is taken over, a relocation from the link to where it points, which the planner then finds in sync.
+     * directory: it is taken over, a relocation from the link to its real path, which the planner then finds in sync.
      * Taking over changes nothing on disk, and links inside a linked directory stay as they are.
      */
     fun status(entry: Entry): Status {
@@ -91,8 +91,9 @@ class BrowseDraft(
      * The rule Configuration applies when it adds the relocation ([additionProblem]), so a row offered here is never
      * refused there.
      *
-     * shortcut: two targets that are one place through a link show as blocked only on the Workspace after saving. Add
-     * a real-path check here when users take over links whose targets are spelled through other links.
+     * shortcut: a take-over's target is a real path, but the draft's paths compare as written. So a draft target
+     * spelled through a link that is the same place shows as blocked only on the Workspace after saving. Add a
+     * real-path check here when users report it.
      */
     private fun overlap(new: Relocation): Problem.Overlap? {
         val existing = relocations.mapNotNull { paths -> paths.source?.let { source -> paths.target?.let { Relocation(source, it) } } }
@@ -121,7 +122,7 @@ class BrowseDraft(
 
         /**
          * Space adds a relocation from `source`. With a `link`, it takes the link over, `source` is the link's path and
-         * the target is where it points; without one, the roots derive the target.
+         * the target is its real path; without one, the roots derive the target.
          */
         data class CanAdd(val source: Path, val link: Link?) : Status
 
@@ -134,7 +135,7 @@ class BrowseDraft(
 
     /** Why a link can't be taken over. */
     sealed interface Problem {
-        /** What is where the link points is not a real directory outside the source root. */
+        /** The link's real path is not a directory outside the source root. */
         data class Target(val target: Link.Target) : Problem {
             init {
                 require(target != Link.Target.DIRECTORY) { "A link to a directory outside the root can be taken over" }

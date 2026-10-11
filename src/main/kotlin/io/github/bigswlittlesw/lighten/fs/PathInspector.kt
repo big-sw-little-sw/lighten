@@ -9,8 +9,8 @@ import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 
 /**
- * Observes a path without following a symlink at it. For a symlink, it also records where the link points and whether
- * that exists.
+ * Observes a path without following a symlink at it. For a symlink, it also records where the link points, whether
+ * that exists and, when it does, its real path.
  */
 class PathInspector {
     fun inspect(path: Path): PathObservation {
@@ -20,7 +20,15 @@ class PathInspector {
         } catch (exception: IOException) {
             return PathObservation(PathState.INACCESSIBLE)
         }
-        return PathObservation(PathState.SYMLINK, target, targetAvailability(target))
+        // The system follows every link on the way, and resolves `..` after it, which the text alone can't show.
+        val real = try {
+            path.toRealPath()
+        } catch (exception: NoSuchFileException) {
+            return PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.ABSENT)
+        } catch (exception: IOException) {
+            return PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.INACCESSIBLE)
+        }
+        return PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.EXISTS, symlinkRealPath = real)
     }
 
     private fun inspectNonLink(path: Path): PathObservation = try {
@@ -41,13 +49,4 @@ class PathInspector {
 
     private fun isEmptyDirectory(path: Path): Boolean =
         Files.list(path).use { entries -> entries.findAny().isEmpty }
-
-    private fun targetAvailability(path: Path): SymlinkTargetAvailability = try {
-        Files.readAttributes(path, BasicFileAttributes::class.java)
-        SymlinkTargetAvailability.EXISTS
-    } catch (exception: NoSuchFileException) {
-        SymlinkTargetAvailability.ABSENT
-    } catch (exception: IOException) {
-        SymlinkTargetAvailability.INACCESSIBLE
-    }
 }

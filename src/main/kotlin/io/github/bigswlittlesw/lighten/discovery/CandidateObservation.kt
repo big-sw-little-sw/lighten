@@ -22,9 +22,10 @@ data class CandidateObservation(
     }
 
     /**
-     * A link under the source root and what is where it points. `path` is spelled under the root as Browse names
-     * it. `pointsTo` is the link's `text` resolved against its parent and normalized, without following anything:
-     * the planner compares a source link with its target in the same way, so a relocation with this target is in sync.
+     * A link under the source root and what is where it leads. `path` is spelled under the root as Browse names it.
+     * `pointsTo` is the link's real path: where the system finds its destination, through every other link on the
+     * way. The planner compares a source link with its target by real path, so a relocation with this target is in
+     * sync. While the system finds nothing there, `pointsTo` is the link's `text` against its parent instead.
      */
     data class Link(val path: Path, val text: Path, val pointsTo: Path, val target: Target) {
         enum class Target {
@@ -32,16 +33,9 @@ data class CandidateObservation(
             DIRECTORY,
             /** A directory inside the source root, or the root itself. */
             INSIDE_ROOT,
-            /** Another link, which includes a loop. */
-            LINK,
             NOT_DIRECTORY,
-            /** Nothing: the link is broken. */
-            MISSING,
-            /**
-             * A directory, but the system finds another one: a relative link whose `..` passes a link above it. The
-             * planner reads the link's text as written, so it would plan the wrong target.
-             */
-            UNCLEAR,
+            /** The system finds nothing where the link leads: nothing is there, links loop, or a file is in the way. */
+            BROKEN,
             UNREADABLE,
         }
     }

@@ -101,8 +101,7 @@ class WordingTest {
             .map(::linkTargetNote)
         assertEquals(
             listOf(
-                "link points inside your home", "link points to another link", "link points to a file", "link is broken",
-                "link target is unclear", "can't read where the link points",
+                "link points inside your home", "link points to a file", "link is broken", "can't read where the link points",
             ),
             notes,
         )

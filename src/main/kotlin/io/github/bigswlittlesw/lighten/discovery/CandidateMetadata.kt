@@ -6,6 +6,7 @@ import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Link
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Reason
 import java.io.IOException
 import java.nio.file.AccessDeniedException
+import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.NoSuchFileException
@@ -15,7 +16,7 @@ import java.time.Instant
 
 /**
  * Reads only the real path of the source root, the attributes of each path without following links, and the text
- * of a link. For a link it also reads what is where the link points, so Browse can say whether a relocation can take
+ * of a link. For a link it also reads its real path and what is there, so Browse can say whether a relocation can take
  * the link over as it is. It never lists a directory. It checks the paths under the root again to find a path
  * replaced while it reads. This can miss a change: Java's path-based calls cannot lock a path against a concurrent
  * rename.
@@ -111,36 +112,37 @@ internal class CandidateMetadata(private val access: Access = Access()) {
     }
 
     /**
-     * The link at `path` with `text`, and what is where it points. Only a link to a real directory outside the root
-     * can become a relocation as it is: the planner needs the target to be a directory, not a link, and a target
-     * inside the root frees no space. The system must also find the link where its text, read as written, points.
-     * The link is the user's, so a failure here describes the link and does not fail
+     * The link at `path` with `text`, and what is at its real path. Only a link whose real path is a directory outside
+     * the root can become a relocation as it is: the planner judges a source link by its real path, and a target
+     * inside the root frees no space. The link is the user's, so a failure here describes the link and does not fail
      * the observation.
      */
     private fun linkAt(anchor: Anchor, path: Path, text: Path): Link {
-        val pointsTo = path.parent.resolve(text).normalize()
+        val written = path.parent.resolve(text).normalize()
+        val real = try {
+            access.realPath(path)
+        } catch (_: AccessDeniedException) {
+            return Link(path, text, written, Link.Target.UNREADABLE)
+        } catch (_: FileSystemException) {
+            // The system can't follow the link: nothing is there, links loop, or a file is in the way.
+            return Link(path, text, written, Link.Target.BROKEN)
+        } catch (_: IOException) {
+            return Link(path, text, written, Link.Target.UNREADABLE)
+        } catch (_: SecurityException) {
+            return Link(path, text, written, Link.Target.UNREADABLE)
+        }
         val target = try {
-            val attributes = access.attributes(pointsTo)
             when {
-                attributes.isSymbolicLink -> Link.Target.LINK
-                !attributes.isDirectory -> Link.Target.NOT_DIRECTORY
-                else -> {
-                    val real = access.realPath(pointsTo)
-                    when {
-                        access.realPath(path) != real -> Link.Target.UNCLEAR
-                        pointsTo.startsWith(anchor.lexical) || real.startsWith(anchor.physical) -> Link.Target.INSIDE_ROOT
-                        else -> Link.Target.DIRECTORY
-                    }
-                }
+                !access.attributes(real).isDirectory -> Link.Target.NOT_DIRECTORY
+                real.startsWith(anchor.physical) -> Link.Target.INSIDE_ROOT
+                else -> Link.Target.DIRECTORY
             }
-        } catch (_: NoSuchFileException) {
-            Link.Target.MISSING
         } catch (_: IOException) {
             Link.Target.UNREADABLE
         } catch (_: SecurityException) {
             Link.Target.UNREADABLE
         }
-        return Link(path, text, pointsTo, target)
+        return Link(path, text, real, target)
     }
 
     private fun checkAnchor(anchor: Anchor) {

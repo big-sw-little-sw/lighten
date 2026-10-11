@@ -29,7 +29,7 @@ class ReconciliationPlanner {
         val relocation = state.relocation
         val source = relocation.sourcePath
         val target = relocation.targetPath
-        val sourceState = state.source.sourceStateForTarget(target)
+        val sourceState = state.sourceState()
         val replacedSourceLeft = state.replacedSource?.state == PathState.DIRECTORY
         if (replacedSourceLeft && sourceState == RelocationSourceState.DIRECTORY) {
             return blocked(state, PathText("an interrupted replacement left the original source at ", replacedSource(state)))
@@ -225,7 +225,7 @@ private fun notADirectoryReason(inTheWay: RelocationState.NotADirectory): PathTe
  */
 private fun wrongLinkReason(state: RelocationState): PathText {
     // A wrong link is a symlink observation, which always has a link target.
-    val pointsTo = state.source.symlinkTarget!!
+    val pointsTo = state.source.linkDestination!!
     val missing = state.source.symlinkTargetAvailability == SymlinkTargetAvailability.ABSENT
     return PathText(
         state.relocation.sourcePath, " links to ", pointsTo, ", not to ", state.relocation.targetPath, ". " +
@@ -234,7 +234,10 @@ private fun wrongLinkReason(state: RelocationState): PathText {
     )
 }
 
-/** Whether the source link points to the target, compared as `sourceStateForTarget` compares a working link. */
+/**
+ * Whether a broken source link's text names the target. A broken link has no real path, so only its text can say
+ * where it points.
+ */
 private fun linksToTarget(state: RelocationState): Boolean =
     state.source.symlinkTarget == state.relocation.targetPath.toAbsolutePath().normalize()
 

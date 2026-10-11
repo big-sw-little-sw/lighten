@@ -701,10 +701,8 @@ private const val LINK_TO_DIRECTORY = "a link to a directory outside the root ca
 internal fun linkTargetNote(target: CandidateObservation.Link.Target) = when (target) {
     CandidateObservation.Link.Target.DIRECTORY -> error(LINK_TO_DIRECTORY)
     CandidateObservation.Link.Target.INSIDE_ROOT -> "link points inside your home"
-    CandidateObservation.Link.Target.LINK -> "link points to another link"
     CandidateObservation.Link.Target.NOT_DIRECTORY -> "link points to a file"
-    CandidateObservation.Link.Target.MISSING -> "link is broken"
-    CandidateObservation.Link.Target.UNCLEAR -> "link target is unclear"
+    CandidateObservation.Link.Target.BROKEN -> "link is broken"
     CandidateObservation.Link.Target.UNREADABLE -> "can't read where the link points"
 }
 /** `other` is the relocation it would overlap, or null when the link points to a directory that holds the link. */
@@ -713,11 +711,8 @@ internal fun linkOverlapsNote(other: String?) = if (other == null) "link points 
 internal fun linkTargetProblem(target: CandidateObservation.Link.Target) = when (target) {
     CandidateObservation.Link.Target.DIRECTORY -> error(LINK_TO_DIRECTORY)
     CandidateObservation.Link.Target.INSIDE_ROOT -> "it points inside your home, so moving it frees no space"
-    CandidateObservation.Link.Target.LINK -> "it points to another link, and a target must be a directory"
     CandidateObservation.Link.Target.NOT_DIRECTORY -> "it points to a file, not a directory"
-    CandidateObservation.Link.Target.MISSING -> "the link is broken"
-    CandidateObservation.Link.Target.UNCLEAR ->
-        "it is a relative link under another link, so it may point elsewhere than its text says"
+    CandidateObservation.Link.Target.BROKEN -> "the link is broken"
     CandidateObservation.Link.Target.UNREADABLE -> "Lighten can't read where it points"
 }
 internal const val LINK_IGNORED = "you ignore it"

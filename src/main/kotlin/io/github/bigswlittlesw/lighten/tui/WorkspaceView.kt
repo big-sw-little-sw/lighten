@@ -406,7 +406,7 @@ internal object WorkspaceView {
             add(Line(PATHS, palette.text, true))
             add(Line(sourceLine(source)))
             add(Line(targetLine(item.relocation.targetPath)))
-            item.sourceObservation.symlinkTarget?.takeIf { path -> path != item.relocation.targetPath }
+            item.sourceObservation.linkDestination?.takeIf { path -> path != item.relocation.targetPath }
                 ?.let { path -> add(Line("Current link destination: " + displayPath(path))) }
             if (archiving && archive != null) add(Line(archiveLine(archive)))
             leftBehind(item)?.let { path -> add(Line("Left behind: " + displayPath(path))) }

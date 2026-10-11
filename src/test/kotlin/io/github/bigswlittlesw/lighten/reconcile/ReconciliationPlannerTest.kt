@@ -304,9 +304,13 @@ class ReconciliationPlannerTest {
         assertEquals("no-op", plan.actions().first().type)
     }
 
-    /** No rule replaces a source link to somewhere else. The reason names both paths and both fixes. */
+    /**
+     * No rule replaces a source link to somewhere else. The reason names both paths and both fixes. It names where
+     * the link really leads, so the fixture is spelled by real path.
+     */
     @Test
-    fun aSourceLinkToSomewhereElseIsBlockedWhateverTheRules(@TempDir root: Path) {
+    fun aSourceLinkToSomewhereElseIsBlockedWhateverTheRules(@TempDir temporary: Path) {
+        val root = temporary.toRealPath()
         val target = Files.createDirectories(root.resolve("local/cache"))
         val source = root.resolve("home/cache")
         Files.createDirectories(source.parent)
