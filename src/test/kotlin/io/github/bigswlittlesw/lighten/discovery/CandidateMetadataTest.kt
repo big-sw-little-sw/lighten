@@ -3,6 +3,7 @@ package io.github.bigswlittlesw.lighten.discovery
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Kind
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Link
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Reason
+import io.github.bigswlittlesw.lighten.diskTree
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -44,8 +45,8 @@ class CandidateMetadataTest {
     }
 
     /**
-     * A link is never walked into: discovery reads only what is where it points, and nothing below that. The root
-     * alias is resolved, and so is a link's target outside the root, to find whether it is inside the root.
+     * A link is never walked into: discovery reads only what is at its real path, and nothing below that. The root
+     * alias is resolved, and so is each link, to find whether it leads inside the root.
      */
     @Test fun rootAliasAllowedAndLinksAreReadButNeverWalkedInto() {
         val physical = Files.createDirectory(temporary.resolve("root")).toRealPath()
@@ -59,17 +60,17 @@ class CandidateMetadataTest {
         Files.createSymbolicLink(physical.resolve("inside-parent"), Path.of("inside"))
         val allowed = setOf(physical, physical.resolve("inside"), physical.resolve("link"),
                 physical.resolve("broken"), physical.resolve("inside-parent"),
-                // Where the links point, spelled as discovery spells them: under the alias.
-                outside, alias.resolve("missing"), alias.resolve("inside"))
+                // Where the links lead: their real paths.
+                outside)
         val reader = guarded(
             alias, allowed,
-            resolvable = setOf(alias, outside, alias.resolve("link"), alias.resolve("inside"), alias.resolve("inside-parent")),
+            resolvable = setOf(alias, alias.resolve("link"), alias.resolve("broken"), alias.resolve("inside-parent")),
         )
         val anchor = reader.anchor(alias)
         val directory = reader.inspect(anchor, alias.resolve("inside"), 1)
         assertState(directory, Kind.DIRECTORY)
         assertReason(directory, Reason.ALIAS_UNCERTAINTY)
-        for ((name, target) in listOf("link" to Link.Target.DIRECTORY, "broken" to Link.Target.MISSING)) {
+        for ((name, target) in listOf("link" to Link.Target.DIRECTORY, "broken" to Link.Target.BROKEN)) {
             val result = reader.inspect(anchor, alias.resolve(name), 1)
             assertState(result, Kind.LINK)
             assertEquals(Link(alias.resolve(name), Files.readSymbolicLink(physical.resolve(name)),
@@ -87,10 +88,10 @@ class CandidateMetadataTest {
     }
 
     /**
-     * What is where a link points decides whether Browse can take it over: only a real directory outside the root.
-     * `pointsTo` is the link's text against its parent, as the planner reads a source link, never the end of a chain.
+     * What is at a link's real path decides whether Browse can take it over: only a directory outside the root.
+     * `pointsTo` is that real path, through every other link on the way, as the planner judges a source link.
      */
-    @Test fun eachLinkSaysWhatIsWhereItPoints() {
+    @Test fun eachLinkSaysWhatIsAtItsRealPath() {
         val base = temporary.toRealPath()
         val root = Files.createDirectories(base.resolve("home"))
         val storage = Files.createDirectories(base.resolve("storage"))
@@ -101,11 +102,20 @@ class CandidateMetadataTest {
         fun link(name: String, text: String) = Files.createSymbolicLink(root.resolve(name), Path.of(text))
         link("abs", storage.resolve("abs").toString())
         link("rel", "../storage/rel")
-        link("chain", "../storage/hop")
+        // A chain of absolute hops, a chain of relative hops, and a chain that ends in the home.
+        link("chain", storage.resolve("hop").toString())
         Files.createSymbolicLink(storage.resolve("hop"), storage.resolve("end"))
+        link("relative-chain", "../storage/relative-hop")
+        Files.createSymbolicLink(storage.resolve("relative-hop"), Path.of("end"))
+        link("chain-home", "../storage/hop-home")
+        Files.createSymbolicLink(storage.resolve("hop-home"), root.resolve("real"))
         link("loop-a", "loop-b"); link("loop-b", "loop-a")
         link("to-file", storage.resolve("file").toString())
+        link("chain-to-file", "../storage/hop-file")
+        Files.createSymbolicLink(storage.resolve("hop-file"), Path.of("file"))
         link("broken", storage.resolve("gone").toString())
+        link("chain-broken", "../storage/hop-gone")
+        Files.createSymbolicLink(storage.resolve("hop-gone"), Path.of("gone"))
         link("inside", root.resolve("real").toString())
         // The same place as `real`, spelled through a link outside the root.
         link("inside-real", base.resolve("alias/real").toString())
@@ -115,17 +125,28 @@ class CandidateMetadataTest {
         Files.createSymbolicLink(storage.resolve("parent-target/abs-child"), storage.resolve("abs"))
         Files.createSymbolicLink(storage.resolve("parent-target/rel-child"), Path.of("../rel"))
         link(".local", storage.resolve("parent-target").toString())
+        val before = diskTree(base)
         val reader = CandidateMetadata()
         val anchor = reader.anchor(root)
         fun observed(path: String) = reader.inspect(anchor, root.resolve(path), 1)
-        fun target(path: String) = checkNotNull(observed(path).link) { path }.target
+        fun link(path: String) = checkNotNull(observed(path).link) { path }
+        fun target(path: String) = link(path).target
         assertEquals(Link(root.resolve("abs"), storage.resolve("abs"), storage.resolve("abs"), Link.Target.DIRECTORY), observed("abs").link)
         assertEquals(Link(root.resolve("rel"), Path.of("../storage/rel"), storage.resolve("rel"), Link.Target.DIRECTORY), observed("rel").link)
-        assertEquals(storage.resolve("hop"), observed("chain").link?.pointsTo)
-        assertEquals(Link.Target.LINK, target("chain"))
-        assertEquals(Link.Target.LINK, target("loop-a"))
+        assertEquals(Link(root.resolve("chain"), storage.resolve("hop"), storage.resolve("end"), Link.Target.DIRECTORY), observed("chain").link)
+        assertEquals(
+            Link(root.resolve("relative-chain"), Path.of("../storage/relative-hop"), storage.resolve("end"), Link.Target.DIRECTORY),
+            observed("relative-chain").link,
+        )
+        assertEquals(Link.Target.INSIDE_ROOT, target("chain-home"))
+        assertEquals(root.resolve("real"), link("chain-home").pointsTo)
+        assertEquals(Link.Target.BROKEN, target("loop-a"))
         assertEquals(Link.Target.NOT_DIRECTORY, target("to-file"))
-        assertEquals(Link.Target.MISSING, target("broken"))
+        assertEquals(Link.Target.NOT_DIRECTORY, target("chain-to-file"))
+        assertEquals(Link.Target.BROKEN, target("broken"))
+        assertEquals(storage.resolve("gone"), link("broken").pointsTo, "a broken link shows its text against its parent")
+        assertEquals(Link.Target.BROKEN, target("chain-broken"))
+        assertEquals(storage.resolve("hop-gone"), link("chain-broken").pointsTo)
         assertEquals(Link.Target.INSIDE_ROOT, target("inside"))
         assertEquals(Link.Target.INSIDE_ROOT, target("inside-real"))
         assertEquals(Link.Target.DIRECTORY, target("to-root"), "the root's parent is outside it; overlap refuses it later")
@@ -137,15 +158,45 @@ class CandidateMetadataTest {
         // The first link from the root names the parent; `.local/share` below it is never read.
         Files.createSymbolicLink(storage.resolve("parent-target/share"), storage.resolve("rel"))
         assertEquals(root.resolve(".local"), observed(".local/share/uv").link?.path)
+        Files.delete(storage.resolve("parent-target/share"))
         assertEquals(Kind.DIRECTORY, observed("real").kind)
         assertEquals(null, observed("real").link)
+        assertEquals(before, diskTree(base))
     }
 
     /**
-     * Under a root reached through a link, a relative link's `..` leads where the system finds it, not where its text
-     * reads as written. The planner reads the text as written, so the link's target is unclear and can't be taken over.
+     * The shape dotfiles make: links in the home, absolute and relative, lead through another link in the home to
+     * storage. Each one, and a linked parent spelled the same way, leads to a directory outside the home.
      */
-    @Test fun aRelativeLinkThatLeavesAnAliasedRootIsUnclear() {
+    @Test fun aLinkThroughALinkInTheHomeLeadsToStorage() {
+        val base = temporary.toRealPath()
+        val root = Files.createDirectories(base.resolve("home"))
+        val disk = Files.createDirectories(base.resolve("disk"))
+        for (name in listOf("cache/JetBrains", "cargo", "m2/repository")) Files.createDirectories(disk.resolve(name))
+        Files.createDirectories(root.resolve(".cache"))
+        Files.createSymbolicLink(root.resolve(".local-heavy"), disk)
+        Files.createSymbolicLink(root.resolve(".cache/JetBrains"), Path.of("../.local-heavy/cache/JetBrains"))
+        Files.createSymbolicLink(root.resolve(".cargo"), Path.of(".local-heavy/cargo"))
+        Files.createSymbolicLink(root.resolve(".m2"), root.resolve(".local-heavy/m2"))
+        val before = diskTree(base)
+        val reader = CandidateMetadata()
+        val anchor = reader.anchor(root)
+        fun observed(path: String) = reader.inspect(anchor, root.resolve(path), 1)
+        assertEquals(
+            Link(root.resolve(".cache/JetBrains"), Path.of("../.local-heavy/cache/JetBrains"), disk.resolve("cache/JetBrains"), Link.Target.DIRECTORY),
+            observed(".cache/JetBrains").link,
+        )
+        assertEquals(Link(root.resolve(".cargo"), Path.of(".local-heavy/cargo"), disk.resolve("cargo"), Link.Target.DIRECTORY), observed(".cargo").link)
+        val inParent = observed(".m2/repository")
+        assertState(inParent, Kind.BLOCKED_BY_LINK)
+        assertEquals(Link(root.resolve(".m2"), root.resolve(".local-heavy/m2"), disk.resolve("m2"), Link.Target.DIRECTORY), inParent.link)
+        // The anchor link itself leads outside the home too.
+        assertEquals(disk, observed(".local-heavy").link?.pointsTo)
+        assertEquals(before, diskTree(base))
+    }
+
+    /** Under a root reached through a link, a relative link's `..` leads where the system finds it, as written or not. */
+    @Test fun aRelativeLinkThatLeavesAnAliasedRootLeadsWhereTheSystemFindsIt() {
         val base = temporary.toRealPath()
         val physical = Files.createDirectories(base.resolve("a/b/home"))
         Files.createDirectories(base.resolve("other"))
@@ -157,23 +208,22 @@ class CandidateMetadataTest {
         val anchor = reader.anchor(alias)
         val up = checkNotNull(reader.inspect(anchor, alias.resolve("up"), 1).link)
         // As written, `h/up` → `../other` is `base/other`; the system finds `base/a/b/other`.
-        assertEquals(base.resolve("other"), up.pointsTo)
-        assertEquals(Link.Target.UNCLEAR, up.target)
-        assertEquals(Link.Target.DIRECTORY, reader.inspect(anchor, alias.resolve("plain"), 1).link?.target)
+        assertEquals(Link(alias.resolve("up"), Path.of("../other"), base.resolve("a/b/other"), Link.Target.DIRECTORY), up)
+        assertEquals(base.resolve("other"), reader.inspect(anchor, alias.resolve("plain"), 1).link?.pointsTo)
     }
 
     @Test fun aLinkWhoseTargetCannotBeReadIsStillALink() {
         val root = temporary.toRealPath()
         Files.createSymbolicLink(root.resolve("link"), Path.of("/denied/cache"))
         val reader = CandidateMetadata(object : CandidateMetadata.Access() {
-            override fun attributes(path: Path): BasicFileAttributes {
-                if (path.startsWith("/denied")) throw AccessDeniedException(path.toString())
-                return super.attributes(path)
+            override fun realPath(path: Path): Path {
+                if (path.endsWith("link")) throw AccessDeniedException(path.toString())
+                return super.realPath(path)
             }
         })
         val result = reader.inspect(reader.anchor(root), root.resolve("link"), 1)
         assertState(result, Kind.LINK)
-        assertEquals(Link.Target.UNREADABLE, result.link?.target)
+        assertEquals(Link(root.resolve("link"), Path.of("/denied/cache"), Path.of("/denied/cache"), Link.Target.UNREADABLE), result.link)
     }
 
     @Test fun permissionsAndGenericErrorsHaveTypedUnknownEvidence() {

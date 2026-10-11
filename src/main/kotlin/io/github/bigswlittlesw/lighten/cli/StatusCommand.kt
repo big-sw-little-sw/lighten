@@ -34,7 +34,7 @@ internal class StatusCommand : Callable<Int> {
         val snapshots = ConfigurationEvaluation().loadRequired(configPath).observations.map { state ->
             StatusSnapshot(
                 state.relocation.sourcePath, state.relocation.targetPath,
-                state.source.sourceStateForTarget(state.relocation.targetPath),
+                state.sourceState(),
             )
         }
         renderStatusJson(configPath, snapshots, output)

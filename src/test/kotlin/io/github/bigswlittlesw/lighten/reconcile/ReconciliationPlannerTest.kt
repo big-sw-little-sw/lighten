@@ -265,7 +265,7 @@ class ReconciliationPlannerTest {
                 assertEquals(listOf(ReconciliationAction.Blocked::class), plan.actions().map { it::class })
                 assertEquals(
                     "$source links to $missing, not to $target. What it links to does not exist now (perhaps an " +
-                        "unmounted disk). Remove the link, or set its target to where it points",
+                        "unmounted disk). Mount the disk or fix the link, then check again",
                     blockReason(plan, 0),
                 )
             }
@@ -280,10 +280,10 @@ class ReconciliationPlannerTest {
         val target = root.resolve("local/cache")
         Files.createSymbolicLink(source, target)
 
-        assertEquals("broken source link has no target directory", blockReason(plan(Relocation(source, target)), 0))
+        assertEquals("the source link to the target is broken. What it links to does not exist now (perhaps an unmounted disk). Mount the disk or fix the link, then check again", blockReason(plan(Relocation(source, target)), 0))
 
         // The target can appear between the two observations. The link then looks broken while the target is a directory.
-        val brokenLink = PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.ABSENT)
+        val brokenLink = PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.ABSENT, symlinkText = target)
         val repair = ReconciliationPlanner().plan(listOf(
             RelocationState(Relocation(source, target), brokenLink, PathObservation(PathState.DIRECTORY)),
         ))
@@ -304,9 +304,13 @@ class ReconciliationPlannerTest {
         assertEquals("no-op", plan.actions().first().type)
     }
 
-    /** No rule replaces a source link to somewhere else. The reason names both paths and both fixes. */
+    /**
+     * No rule replaces a source link to somewhere else. The reason names both paths and both fixes. It names where
+     * the link really leads, so the fixture is spelled by real path.
+     */
     @Test
-    fun aSourceLinkToSomewhereElseIsBlockedWhateverTheRules(@TempDir root: Path) {
+    fun aSourceLinkToSomewhereElseIsBlockedWhateverTheRules(@TempDir temporary: Path) {
+        val root = temporary.toRealPath()
         val target = Files.createDirectories(root.resolve("local/cache"))
         val source = root.resolve("home/cache")
         Files.createDirectories(source.parent)

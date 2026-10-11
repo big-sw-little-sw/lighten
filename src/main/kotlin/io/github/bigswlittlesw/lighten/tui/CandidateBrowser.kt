@@ -533,7 +533,7 @@ private fun shownWhenFiltered(entry: BrowseDraft.Entry): Boolean = found(entry) 
 /** Every listed directory found, those `u` hides included. */
 private fun foundCount(draft: BrowseDraft): Int = entriesByPath(draft).values.count(::found)
 
-/** What Space adds: a relocation from the directory, or a link to take over as it is, with where it points. */
+/** What Space adds: a relocation from the directory, or a link to take over as it is, with its real path. */
 private fun addition(status: BrowseDraft.Status.CanAdd): BrowseAction.Add = BrowseAction.Add(status.source, status.link?.pointsTo)
 
 private fun addition(status: BrowseDraft.Status): BrowseAction.Add? = (status as? BrowseDraft.Status.CanAdd)?.let(::addition)

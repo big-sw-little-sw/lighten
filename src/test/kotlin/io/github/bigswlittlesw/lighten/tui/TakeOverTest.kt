@@ -4,6 +4,7 @@ import io.github.bigswlittlesw.lighten.application.ConfigurationEvaluation
 import io.github.bigswlittlesw.lighten.application.LightenSession
 import io.github.bigswlittlesw.lighten.config.ConfigurationLoader
 import io.github.bigswlittlesw.lighten.discovery.SetupDiscoveryFixture
+import io.github.bigswlittlesw.lighten.diskTree
 import io.github.bigswlittlesw.lighten.reconcile.ReconciliationAction
 import io.github.bigswlittlesw.lighten.reconcile.RelocationOutcome
 import io.github.bigswlittlesw.lighten.tui.BrowseTest.Companion.await
@@ -17,20 +18,15 @@ import io.github.bigswlittlesw.lighten.tui.BrowseTest.Companion.selected
 import io.github.bigswlittlesw.lighten.tui.BrowseTest.Companion.selectedGroup
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
-import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.util.regex.Pattern
-import kotlin.io.path.isDirectory
-import kotlin.io.path.isRegularFile
-import kotlin.io.path.isSymbolicLink
 
 /**
- * Browse takes over links that the user made: Space or `L` adds a relocation from the link to where it points, so the
+ * Browse takes over links that the user made: Space or `L` adds a relocation from the link to its real path, so the
  * next plan finds it in sync. Every test checks that nothing on disk changes, from opening Browse to saving.
  */
 class TakeOverTest {
@@ -54,21 +50,23 @@ class TakeOverTest {
             key(ui, ' ')
             choose(ui, "rel-link"); key(ui, ' ')
             choose(ui, "under-root"); key(ui, ' ')
+            choose(ui, "chain"); key(ui, ' ')
             save(ui)
             assertEquals(before, tree(root))
             val written = ConfigurationLoader().read(root.resolve("config.json")).file.relocations.associate { it.sourcePath to it.targetPath }
             assertEquals(root.resolve("storage/abs").toString(), written[home(root, "abs-link")])
-            // A relative link's target is where it points, in full.
+            // A relative link's target is its real path, in full, and so is the end of a chain.
             assertEquals(root.resolve("storage/rel").toString(), written[home(root, "rel-link")])
+            assertEquals(root.resolve("storage/end").toString(), written[home(root, "chain")])
             // A link to where the roots would put it anyway needs no target in the file.
             assertTrue(written.containsKey(home(root, "under-root")) && written[home(root, "under-root")] == null, written.toString())
             val plan = ConfigurationEvaluation().loadRequired(root.resolve("config.json")).plan.relocations
                 .associate { it.relocation.sourcePath.fileName.toString() to it }
-            for (name in listOf("abs-link", "rel-link", "under-root")) {
+            for (name in listOf("abs-link", "rel-link", "under-root", "chain")) {
                 assertEquals(RelocationOutcome.CONVERGED, plan.getValue(name).outcome, name)
                 assertTrue(plan.getValue(name).actions.all { it is ReconciliationAction.NoOp }, name)
             }
-            assertTrue(render(ui).contains("c: show 3 in sync"), render(ui))
+            assertTrue(render(ui).contains("c: show 4 in sync"), render(ui))
         }
         assertEquals(before, tree(root))
     }
@@ -122,7 +120,7 @@ class TakeOverTest {
             val ui = browse(root, workers)
             val screen = render(ui)
             for ((name, note) in listOf(
-                "chain" to "link points to another link", "broken" to "link is broken", "loop-a" to "link points to another link",
+                "chain-home" to "link points inside your home", "broken" to "link is broken", "loop-a" to "link is broken",
                 "to-file" to "link points to a file", "inside" to "link points inside your home",
             )) {
                 assertTrue(row(screen, name).contains("− $name") && row(screen, name).contains(note), screen)
@@ -149,14 +147,14 @@ class TakeOverTest {
         SetupDiscoveryFixture().use { workers ->
             val ui = browse(root, workers)
             val offered = render(ui)
-            // abs-link, rel-link, under-root, and the linked parents .cache and .local.
-            assertTrue(offered.contains("5 directories are links you made. Press L to take them over."), offered)
+            // abs-link, rel-link, under-root, chain, and the linked parents .cache and .local.
+            assertTrue(offered.contains("6 directories are links you made. Press L to take them over."), offered)
             key(ui, '?')
             assertTrue(render(ui).contains("Take over every shown link you made"), render(ui))
             key(ui, '?')
             key(ui, 'L')
             val taken = render(ui)
-            assertTrue(taken.contains("Took over 5. Left out 5 links with problems; Enter on one says why."), taken)
+            assertTrue(taken.contains("Took over 6. Left out 5 links with problems; Enter on one says why."), taken)
             assertFalse(taken.contains("Press L"), taken)
             // Pressing it again finds nothing more to take over.
             key(ui, 'l')
@@ -167,7 +165,7 @@ class TakeOverTest {
             save(ui)
             val written = ConfigurationLoader().read(root.resolve("config.json")).file.relocations.map { it.sourcePath }.toSet()
             assertEquals(
-                setOf("plain", "abs-link", "rel-link", "under-root", ".cache", ".local").map { home(root, it) }.toSet(), written,
+                setOf("plain", "abs-link", "rel-link", "under-root", "chain", ".cache", ".local").map { home(root, it) }.toSet(), written,
             )
             val plan = ConfigurationEvaluation().loadRequired(root.resolve("config.json")).plan
             assertTrue(plan.relocations.filter { it.relocation.sourcePath.fileName.toString() != "plain" }
@@ -179,17 +177,71 @@ class TakeOverTest {
     /** `f` counts and shows a row inside a linked parent as found, before and after the parent is taken over. */
     @Test fun aRowInsideALinkedParentIsFound() {
         val root = fixture()
+        val before = tree(root)
         SetupDiscoveryFixture().use { workers ->
             val ui = browse(root, workers)
             key(ui, 'f')
             val filtered = render(ui)
             for (path in listOf(".cache/uv", ".cache/pip", ".local/share/uv")) assertTrue(row(filtered, path).contains("○ $path"), filtered)
-            // The links and the linked rows: abs-link, rel-link, under-root, the five problem links, and five rows
+            // The links and the linked rows: abs-link, rel-link, under-root, chain, the five problem links, and five rows
             // inside .cache and .local; .cache/example is hidden as usually not needed. `plain` is in the configuration.
-            assertTrue(filtered.contains("13 found on this machine, plus 1 in your configuration"), filtered)
+            assertTrue(filtered.contains("14 found on this machine, plus 1 in your configuration"), filtered)
             choose(ui, ".cache/uv"); key(ui, ' ')
             assertTrue(row(render(ui), ".cache/pip").contains("● .cache/pip"), render(ui))
             ui.app.closeEditor()
+        }
+        assertEquals(before, tree(root))
+    }
+
+    /**
+     * The shape dotfiles make: links in the home lead through another link in the home, `~/.local-heavy`, to storage.
+     * Browse takes each over with its real path, a linked parent too, and the plan finds them in sync. Their texts
+     * stay as the dotfiles wrote them. When `~/.local-heavy` later leads to another disk, the plan blocks them.
+     */
+    @Test fun linksThroughALinkInTheHomeAreTakenOverWithTheirRealPaths() {
+        val root = dotfiles()
+        val disk = root.resolve("disk")
+        val before = tree(root)
+        SetupDiscoveryFixture().use { workers ->
+            val ui = browse(root, workers)
+            val screen = render(ui)
+            assertTrue(screen.contains("3 directories are links you made. Press L to take them over."), screen)
+            assertTrue(row(screen, ".cache/JetBrains").contains("○ .cache/JetBrains") && row(screen, ".cache/JetBrains").contains("already a link"), screen)
+            assertTrue(row(screen, ".m2/repository").contains("inside ${root.resolve("home/.m2")}, which is a link"), screen)
+            choose(ui, ".cache/JetBrains"); enter(ui)
+            val details = details(ui)
+            assertTrue(details.has("Link: ${home(root, ".cache/JetBrains")} → ${disk.resolve("cache/JetBrains")} (written as ../.local-heavy/cache/JetBrains)"), details)
+            assertTrue(details.has("Space takes over this link: Lighten adds it with ${disk.resolve("cache/JetBrains")} as its target."), details)
+            escape(ui)
+            key(ui, 'L')
+            assertTrue(render(ui).contains("Took over 3."), render(ui))
+            save(ui)
+            assertEquals(before, tree(root))
+            val written = ConfigurationLoader().read(root.resolve("config.json")).file.relocations.associate { it.sourcePath to it.targetPath }
+            assertEquals(
+                mapOf(".cache/JetBrains" to "cache/JetBrains", ".cargo" to "cargo", ".m2" to "m2")
+                    .map { (source, target) -> home(root, source) to disk.resolve(target).toString() }.toMap(),
+                written,
+            )
+            val plan = ConfigurationEvaluation().loadRequired(root.resolve("config.json")).plan
+            assertTrue(plan.relocations.all { it.outcome == RelocationOutcome.CONVERGED && it.actions.all { a -> a is ReconciliationAction.NoOp } }, plan.toString())
+            assertTrue(render(ui).contains("✔ 3 in sync"), render(ui))
+
+            // Another disk behind `~/.local-heavy`, with the same directories: the links now lead elsewhere.
+            val other = root.resolve("other-disk")
+            for (name in listOf("cache/JetBrains", "cargo", "m2/repository")) Files.createDirectories(other.resolve(name))
+            Files.delete(root.resolve("home/.local-heavy"))
+            Files.createSymbolicLink(root.resolve("home/.local-heavy"), other)
+            val changed = tree(root)
+            key(ui, 'r')
+            val blocked = ConfigurationEvaluation().loadRequired(root.resolve("config.json")).plan.relocations
+            for (relocation in blocked) {
+                val action = relocation.actions.single() as ReconciliationAction.Blocked
+                val now = other.resolve(disk.relativize(relocation.relocation.targetPath))
+                assertTrue(action.reason.toString().contains("links to $now, not to ${relocation.relocation.targetPath}"), action.toString())
+            }
+            assertTrue(render(ui).contains("[Blocked]"), render(ui))
+            assertEquals(changed, tree(root))
         }
     }
 
@@ -345,6 +397,9 @@ class TakeOverTest {
         link("home/under-root", root.resolve("local/under-root"))
         link("storage/hop", root.resolve("storage/end"))
         link("home/chain", root.resolve("storage/hop"))
+        // A chain that ends in the home.
+        link("storage/hop-home", root.resolve("home/real"))
+        link("home/chain-home", Path.of("../storage/hop-home"))
         link("home/broken", root.resolve("storage/gone"))
         link("home/loop-a", Path.of("loop-b"))
         link("home/loop-b", Path.of("loop-a"))
@@ -362,14 +417,36 @@ class TakeOverTest {
             """
             {"apps": [
               {"name": "Made by hand", "category": "Links",
-               "directories": [{"path": "abs-link"}, {"path": "rel-link"}, {"path": "under-root"}]},
+               "directories": [{"path": "abs-link"}, {"path": "rel-link"}, {"path": "under-root"}, {"path": "chain"}]},
               {"name": "Problems", "category": "Broken",
-               "directories": [{"path": "chain"}, {"path": "broken"}, {"path": "loop-a"}, {"path": "to-file"}, {"path": "inside"}]}
+               "directories": [{"path": "chain-home"}, {"path": "broken"}, {"path": "loop-a"}, {"path": "to-file"}, {"path": "inside"}]}
              ],
              "directories": [{"path": ".cache/pip"}]}
             """.trimIndent(),
         )
         config(root, """{"source-path": "${home(root, "plain")}"}""")
+        return root
+    }
+
+    /**
+     * Links as the maintainer's dotfiles make them: relative links in the home through `~/.local-heavy`, which leads
+     * to machine-local storage, `disk`. `~/.m2` is a linked parent, spelled through the same link.
+     */
+    private fun dotfiles(): Path {
+        val root = Files.createTempDirectory(temporary, "dotfiles-").toRealPath()
+        for (path in listOf("home/.cache", "local", "disk/cache/JetBrains", "disk/cargo", "disk/m2/repository")) {
+            Files.createDirectories(root.resolve(path))
+        }
+        Files.writeString(root.resolve("disk/cargo/payload"), "unchanged")
+        Files.createSymbolicLink(root.resolve("home/.local-heavy"), root.resolve("disk"))
+        Files.createSymbolicLink(root.resolve("home/.cache/JetBrains"), Path.of("../.local-heavy/cache/JetBrains"))
+        Files.createSymbolicLink(root.resolve("home/.cargo"), Path.of(".local-heavy/cargo"))
+        Files.createSymbolicLink(root.resolve("home/.m2"), Path.of(".local-heavy/m2"))
+        Files.writeString(
+            root.resolve("list.json"),
+            """{"directories": [{"path": ".cache/JetBrains"}, {"path": ".cargo"}, {"path": ".m2/repository"}]}""",
+        )
+        config(root, "")
         return root
     }
 
@@ -408,16 +485,6 @@ class TakeOverTest {
         screen.lines().firstOrNull { Regex("[●○−⊘] " + Pattern.quote(path) + "( |┃)").containsMatchIn(it) }
             ?: throw AssertionError("No row for $path\n$screen")
 
-    /** Every path under `root` with its kind, its link text and its file contents, sorted. */
-    private fun tree(root: Path): List<String> = Files.walk(root).use { paths ->
-        paths.filter { it != root.resolve("config.json") }.map { path ->
-            val name = root.relativize(path).toString()
-            when {
-                path.isSymbolicLink() -> "$name -> ${Files.readSymbolicLink(path)}"
-                path.isRegularFile(LinkOption.NOFOLLOW_LINKS) -> "$name = ${Files.readString(path)}"
-                path.isDirectory(LinkOption.NOFOLLOW_LINKS) -> "$name/"
-                else -> "$name ?"
-            }
-        }.sorted().toList()
-    }.also { assertNull(it.firstOrNull { line -> line.endsWith("?") }) }
+    /** The disk under `root`, but the file that a save writes. */
+    private fun tree(root: Path): List<String> = diskTree(root, except = setOf(root.resolve("config.json")))
 }
