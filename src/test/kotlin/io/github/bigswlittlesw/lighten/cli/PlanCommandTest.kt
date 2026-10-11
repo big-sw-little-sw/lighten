@@ -165,7 +165,7 @@ class PlanCommandTest {
         val output = out.toString()
         val blocked = "{\"type\":\"blocked\",\"path\":\"$source\",\"destructive\":false,\"reason\":\"$source links to " +
             "${root.resolve("nas/app")}, not to $target. What it links to does not exist now (perhaps an unmounted disk). " +
-            "Remove the link, or set its target to where it points\"}"
+            "Mount the disk or fix the link, then check again\"}"
         assertTrue(output.contains("\"actions\":[$blocked]"), output)
         assertFalse(output.contains("replace-symlink"), output)
     }

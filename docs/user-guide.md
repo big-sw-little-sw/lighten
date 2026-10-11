@@ -547,7 +547,8 @@ Lighten looks at the source and the target. Then:
   not to /scratch/local/tool. Remove the link, or set its target to where
   it points.` Then press `r`. The link is blocked even when what it points to
   does not exist now, for example on a disk that is not mounted. Details
-  then say so.
+  then say so and end with `Mount the disk or fix the link, then check
+  again.`
 - **Only the target exists:** the **Only target** rule decides.
 - **Both exist:** the **Both exist** rule decides.
 

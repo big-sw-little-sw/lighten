@@ -325,7 +325,8 @@ mkdir -p "$L/app"; ln -s "$C/unmounted/app" "$H/app"
 config "$(rel app)"
 run plan
 blocked 0 "$C/unmounted/app"
-check "the reason says what it links to does not exist now" j '.relocations[0].actions[0].reason | contains("does not exist now")'
+check "the reason says what it links to does not exist now, and to mount the disk or fix the link" \
+  j '.relocations[0].actions[0].reason | contains("does not exist now") and endswith("Mount the disk or fix the link, then check again") and (contains("set its target") | not)'
 refused
 check "the link still points where it did" [ "$(readlink "$H/app")" = "$C/unmounted/app" ]
 end
@@ -334,7 +335,7 @@ begin broken-link "a dangling source link to the target, no target: [Blocked]"
 ln -s "$L/app" "$H/app"
 config "$(rel app)"
 run plan
-blocked 0 "no target directory"
+blocked 0 "the source link to the target is broken. What it links to does not exist now (perhaps an unmounted disk). Mount the disk or fix the link, then check again"
 refused
 end
 

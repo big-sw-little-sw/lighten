@@ -265,7 +265,7 @@ class ReconciliationPlannerTest {
                 assertEquals(listOf(ReconciliationAction.Blocked::class), plan.actions().map { it::class })
                 assertEquals(
                     "$source links to $missing, not to $target. What it links to does not exist now (perhaps an " +
-                        "unmounted disk). Remove the link, or set its target to where it points",
+                        "unmounted disk). Mount the disk or fix the link, then check again",
                     blockReason(plan, 0),
                 )
             }
@@ -280,7 +280,7 @@ class ReconciliationPlannerTest {
         val target = root.resolve("local/cache")
         Files.createSymbolicLink(source, target)
 
-        assertEquals("broken source link has no target directory", blockReason(plan(Relocation(source, target)), 0))
+        assertEquals("the source link to the target is broken. What it links to does not exist now (perhaps an unmounted disk). Mount the disk or fix the link, then check again", blockReason(plan(Relocation(source, target)), 0))
 
         // The target can appear between the two observations. The link then looks broken while the target is a directory.
         val brokenLink = PathObservation(PathState.SYMLINK, target, SymlinkTargetAvailability.ABSENT, symlinkText = target)

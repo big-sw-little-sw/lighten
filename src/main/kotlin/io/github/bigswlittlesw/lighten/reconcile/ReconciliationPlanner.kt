@@ -65,7 +65,7 @@ class ReconciliationPlanner {
                 PathState.DIRECTORY ->
                     if (state.source.symlinkText == target) outcome(state, listOf(replacementLink(state)))
                     else blocked(state, writtenOtherwiseReason(state))
-                PathState.ABSENT -> blocked(state, PathText("broken source link has no target directory"))
+                PathState.ABSENT -> blocked(state, PathText("the source link to the target is broken. $BROKEN_LINK_ADVICE"))
                 PathState.FILE, PathState.SYMLINK, PathState.INACCESSIBLE, PathState.OTHER -> unsupportedTarget(state)
             }
             RelocationSourceState.INACCESSIBLE -> blocked(state, PathText("source cannot be inspected"))
@@ -219,8 +219,10 @@ private fun notADirectoryReason(inTheWay: RelocationState.NotADirectory): PathTe
 
 /**
  * A source link to somewhere else is blocked, never replaced: it may belong to another tool, and no rule or choice
- * replaces it. The reason names both paths and both fixes. When what the link points to is missing, the reason says
- * so: a disk that is not mounted is the usual cause, and the link is right once it is.
+ * replaces it. The reason names both paths. When the link leads to an existing directory, it gives both fixes: remove
+ * the link, or set the target to where it points. When what it links to is missing, setting the target there would
+ * not help, so it gives [BROKEN_LINK_ADVICE]: a disk that is not mounted is the usual cause, and the link is right
+ * once it is.
  *
  * The reason does not name the tool that owns the link. Add that when Lighten can recognize links that dotfile
  * managers such as GNU Stow or chezmoi make.
@@ -231,10 +233,16 @@ private fun wrongLinkReason(state: RelocationState): PathText {
     val missing = state.source.symlinkTargetAvailability == SymlinkTargetAvailability.ABSENT
     return PathText(
         state.relocation.sourcePath, " links to ", pointsTo, ", not to ", state.relocation.targetPath, ". " +
-            (if (missing) "What it links to does not exist now (perhaps an unmounted disk). " else "") +
-            "Remove the link, or set its target to where it points",
+            if (missing) BROKEN_LINK_ADVICE else "Remove the link, or set its target to where it points",
     )
 }
+
+/**
+ * How every reason for a broken source link ends. The link may belong to another tool and be right once its disk is
+ * mounted, so the advice never says to point the target at it.
+ */
+private const val BROKEN_LINK_ADVICE =
+    "What it links to does not exist now (perhaps an unmounted disk). Mount the disk or fix the link, then check again"
 
 /**
  * A broken source link whose text, read as written, names the target, but is not the target exactly: a relative link,
@@ -244,7 +252,7 @@ private fun wrongLinkReason(state: RelocationState): PathText {
 private fun writtenOtherwiseReason(state: RelocationState): PathText = PathText(
     // A symlink observation always has its text.
     state.relocation.sourcePath, " is a broken link written as ", state.source.symlinkText!!, ", not as ",
-    state.relocation.targetPath, ", so Lighten does not replace it. Fix or remove the link, then check again",
+    state.relocation.targetPath, ", so Lighten does not replace it. $BROKEN_LINK_ADVICE",
 )
 
 /**

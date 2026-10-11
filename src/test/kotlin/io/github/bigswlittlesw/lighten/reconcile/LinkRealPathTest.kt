@@ -76,7 +76,7 @@ class LinkRealPathTest {
         val (jetBrains, cargo) = plan.relocations.map(::blockReason)
         assertTrue(jetBrains.startsWith("${relocations[0].sourcePath} links to ${other.resolve("cache/JetBrains")}, not to ${relocations[0].targetPath}."), jetBrains)
         // `other-disk/cargo` does not exist, so the link is broken now; its text names where it points.
-        assertTrue(cargo.startsWith("${relocations[1].sourcePath} links to ${base.resolve("home/.local-heavy/cargo")}, not to ${relocations[1].targetPath}. What it links to does not exist now"), cargo)
+        assertTrue(cargo.startsWith("${relocations[1].sourcePath} links to ${base.resolve("home/.local-heavy/cargo")}, not to ${relocations[1].targetPath}. What it links to does not exist now (perhaps an unmounted disk). Mount the disk or fix the link, then check again"), cargo)
         assertEquals(before, diskTree(base))
     }
 
@@ -130,7 +130,7 @@ class LinkRealPathTest {
         assertTrue(plan.actions().none { it is ReconciliationAction.ReplaceSymlink }, plan.toString())
         assertEquals(
             "$source is a broken link written as hop/../t, not as $target, so Lighten does not replace it. " +
-                "Fix or remove the link, then check again",
+                "What it links to does not exist now (perhaps an unmounted disk). Mount the disk or fix the link, then check again",
             blockReason(plan.relocations.single()),
         )
         assertEquals(before, diskTree(base))

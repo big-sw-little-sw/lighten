@@ -18,7 +18,7 @@ Lighten relocates directories only. A source that is a file is blocked. Lighten 
 
 A source link that points somewhere other than its target is blocked and never replaced. No rule or choice offers to replace it, because the link can belong to another tool. The reason names where the link points and gives both fixes: remove the link, or set its target to where it points. These words are correct when the user makes the fix in Configuration and when the user edits the file. `plan --json` shows this case as a `blocked` action with that reason, not as a conflict. Why: this case was a conflict before, and that conflict offered no choice. (#223)
 
-A broken source link that points somewhere other than its target is blocked in the same way, because a link to a disk that is not mounted looks broken. Its reason adds that what the link points to does not exist now. A broken link that points to the target keeps its own handling, below. Why: Lighten replaced such a link without a rule or a choice. (#237)
+A broken source link that points somewhere other than its target is blocked in the same way, because a link to a disk that is not mounted looks broken. Its reason says that what the link points to does not exist now. It does not say to set the target there, because the link leads nowhere and may belong to another tool. Every reason for a broken source link ends "Mount the disk or fix the link, then check again". A broken link that points to the target keeps its own handling, below. Why: Lighten replaced such a link without a rule or a choice. (#237)
 
 - `[skipped: naming which tool owns the link, add with #5]`
 
