@@ -74,8 +74,8 @@ Code: `LightenSession.refresh`.
 _Avoid_: refresh, re-plan (in user-facing text)
 
 **In sync**:
-A relocation whose target is a real directory and whose source is the correct link to it. A new plan has no steps for it.
-Code: `RelocationOutcome.CONVERGED`; badge `PlanBadge.IN_SYNC`.
+A relocation whose target is a real directory and whose source is a link that leads to it. The link can lead there through other links: Lighten compares real paths, not the link's text. A new plan has no steps for it.
+Code: `RelocationOutcome.CONVERGED`; badge `PlanBadge.IN_SYNC`; the source is `RelocationSourceState.CORRECT_SYMLINK` (`RelocationState.sourceState`).
 _Avoid_: completed move, migrated, converged (in user-facing text)
 
 **Left as is**:
@@ -106,7 +106,7 @@ Code: `CandidateCatalog`; a suggestion is a candidate (`CandidateDefinition`). T
 _Avoid_: candidate list (in user-facing text)
 
 **Take over**:
-To add a link that the user made by hand to the configuration as it is: a relocation from the link to where the link points. Nothing on disk changes, and the next plan finds the relocation in sync. In Browse, `Space` takes over one link and `L` takes over every link shown. A directory inside a linked parent is taken over with its parent.
+To add a link that the user made by hand to the configuration as it is: a relocation from the link to the directory that it leads to, through any other links. Nothing on disk changes, and the next plan finds the relocation in sync. In Browse, `Space` takes over one link and `L` takes over every link shown. A directory inside a linked parent is taken over with its parent.
 Code: `BrowseDraft.takeOver`, `BrowseDraft.TakeOver`, `BrowseAction.TakeOverAll`; what discovery saw is `CandidateObservation.Link`.
 _Avoid_: adopt (that is **Keep target**), import, track
 

@@ -704,14 +704,15 @@ screen never says "candidate" or "draft".
   not there yet (`not created yet`, `checking…`) is dim. Problems are in the
   warning color, the other notes in the text color. A note names a parent with
   `~`, as every path on screen does.
-- **Take over** a link that the user made. Discovery reads where each link
-  points, at the row's path or at the first linked parent above it, but never
-  lists what is there. A link to a real directory outside the source root can
-  be taken over: the row is `○`, and `Space` (`Space: Take over`) adds a
-  relocation from the link to where it points (its text against its parent,
-  not the end of a chain), so the planner finds it in sync. A target that the
-  roots would derive anyway is left out of the file. Nothing on disk changes,
-  and `s` in Configuration writes the change.
+- **Take over** a link that the user made. Discovery reads each link's real
+  path, at the row's path or at the first linked parent above it, but never
+  lists what is there. A link whose real path is a directory outside the
+  source root can be taken over: the row is `○`, and `Space` (`Space: Take
+  over`) adds a relocation from the link to its real path, through chains and
+  links on the way, so the planner finds it in sync. Details show the link's
+  text when it differs (`written as …`). A target that the roots would derive
+  anyway is left out of the file. Nothing on disk changes, and `s` in
+  Configuration writes the change.
   - Browse decides each row's state in one place, and
     the marks, notes, keys and Details all read it. Its overlap rule is the one
     Configuration uses when it adds the relocation, so a row offered as `○` is
@@ -721,10 +722,8 @@ screen never says "candidate" or "draft".
     and each row inside it shows a dim `●` with `inside ~/.cache, which
     Lighten manages`. `Space` on such a row takes the parent out again. Links
     inside the parent are never touched.
-  - Otherwise the row is `−`, and its note says why: `link is broken`, `link
-    points to another link` (a chain or a loop), `link points to a file`,
-    `link target is unclear` (a relative link whose `..` passes another link,
-    so the system finds another directory than its text names),
+  - Otherwise the row is `−`, and its note says why: `link is broken`
+    (nothing at the end, or a loop), `link points to a file`,
     `link points inside your home`, `can't read where the link points`, `link
     overlaps ~/.cache/pip` (the draft, compared as a save compares it), or
     `ignored by you` for a parent the user ignores. Details say it in a full

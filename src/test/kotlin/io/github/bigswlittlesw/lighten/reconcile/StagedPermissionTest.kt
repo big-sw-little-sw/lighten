@@ -419,7 +419,7 @@ class StagedPermissionTest {
     private fun posixRoot(): Path {
         assumeTrue(Files.getFileStore(temporary).supportsFileAttributeView(PosixFileAttributeView::class.java),
                 "requires a POSIX filesystem")
-        return temporary
+        return temporary.toRealPath()
     }
 
     companion object {

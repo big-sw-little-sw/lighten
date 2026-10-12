@@ -4,6 +4,7 @@ import io.github.bigswlittlesw.lighten.config.Relocation
 import io.github.bigswlittlesw.lighten.config.realSpelling
 import io.github.bigswlittlesw.lighten.fs.PathObservation
 import io.github.bigswlittlesw.lighten.fs.PathState
+import io.github.bigswlittlesw.lighten.fs.RelocationSourceState
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -30,6 +31,18 @@ data class RelocationState(
     val realSpellings: Map<Path, Path> = mapOf(),
     val stagingElsewhere: Boolean = false,
 ) {
+    /**
+     * What is at the source, compared with the target by real path. A real directory's real spelling is its real path.
+     * A target that is a link compares by where it leads, so a source link with the same text is correct and the
+     * planner blocks the target instead.
+     */
+    fun sourceState(): RelocationSourceState {
+        val target = relocation.targetPath
+        return source.sourceStateForTarget(
+            this.target.symlinkRealPath ?: realSpellings[target] ?: target.toAbsolutePath().normalize(),
+        )
+    }
+
     /** The no-follow observation of the source's archive destination, chosen by [inspectArchiveDestinations]. */
     data class ArchiveDestination(val path: Path, val observation: PathObservation)
 

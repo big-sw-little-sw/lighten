@@ -189,7 +189,7 @@ class WorkspaceDetailsTest {
         assertTrue(details.contains("Will do: nothing until you fix the problem below, then check again."), details)
         assertTrue(squeezed(details).contains(squeezed(
             "Problem: $source links to $missing, not to ${root.resolve("local/unmounted")}. What it links to does not " +
-                "exist now (perhaps an unmounted disk). Remove the link, or set its target to where it points.",
+                "exist now (perhaps an unmounted disk). Mount the disk or fix the link, then check again.",
         )), details)
         assertTrue(squeezed(details).contains(squeezed("Current link destination: $missing")), details)
         assertFalse(details.contains("The source link is broken"), details)
