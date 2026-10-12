@@ -209,7 +209,7 @@ Each directory has a mark:
 
 Beside each directory, a note says what Lighten found there:
 
-- `still in your home`: the directory is there and has not moved yet.
+- `not moved yet`: the directory is there and Lighten has not moved it.
 - `not created yet`: the tool has not made the directory yet. You can add it
   now.
 - `already a link`: the directory is a link. If you made the link, see "Take

@@ -654,8 +654,8 @@ screen never says "candidate" or "draft".
   ```
   ┃ ◐ Python                            1 of 3 added                ┃
   ┃   ◐ uv                              1 of 2 added                ┃
-  ┃❯    ● .local/share/uv/python        still in your home          ┃
-  ┃     ○ .local/share/uv/tools         still in your home          ┃
+  ┃❯    ● .local/share/uv/python        not moved yet               ┃
+  ┃     ○ .local/share/uv/tools         not moved yet               ┃
   ┃   ○ pixi                            0 of 1 added                ┃
   ┃     ○ .pixi/envs                    not created yet             ┃
   ┃ − Other directories                 all links with problems     ┃
@@ -697,8 +697,8 @@ screen never says "candidate" or "draft".
   overlaps ~/.cache.`, `Skipped 1 that can't be added.`, `Skipped 1 you
   ignored.` A heading's `1 of 2 added` does not count ignored rows. Enter on a
   heading does nothing.
-- Row notes, in plain words: `checking…`, `not created yet`, `still in your
-  home` (a plain directory, not moved yet), `already a link`,
+- Row notes, in plain words: `checking…`, `not created yet`, `not moved yet`
+  (a plain directory), `already a link`,
   `inside ~/.cache, which is a link`, `inside ~/.cache, which Lighten
   manages`, `not a directory`, `can't read: <reason>`, `usually not needed`,
   and a link's problem (below). A note that only says that the directory is

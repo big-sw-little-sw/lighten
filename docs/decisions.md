@@ -332,7 +332,7 @@ The rules are in [`tui-design.md`](tui-design.md), which holds only the current 
   - `[skipped: own words for errors the OS reports only as a reason (no space left, read-only filesystem), add when a user hits one]`
 - **Configuration** has labels next to its fields, and it opens Browse on a first run. ([§7](tui-design.md#7-configuration), #114, #189)
   - `[skipped: selecting the first added relocation when the first-run Browse closes, add when users miss where their picks went]`
-- **Browse** is a list of categories, apps and directories with plain marks. It always shows its lists, removes old results while it checks, and can show only what it finds on this machine. It takes over links the user made, and a heading with nothing to add says why. A plain directory has the note `still in your home`, so every directory that Browse finds has a note. ([§8](tui-design.md#8-browse), #115, #165, #190, #245, #249)
+- **Browse** is a list of categories, apps and directories with plain marks. It always shows its lists, removes old results while it checks, and can show only what it finds on this machine. It takes over links the user made, and a heading with nothing to add says why. A plain directory has the note `not moved yet`, so every directory that Browse finds has a note. ([§8](tui-design.md#8-browse), #115, #165, #190, #245, #249)
   - `[skipped: showing previous results while checking again, add when re-checks are slow enough that blank rows annoy users]`
   - `[skipped: per-row list history, add when users need to know a list used to suggest a row]`
   - `[skipped: PageUp/PageDown in Browse, add when suggestion lists grow past a few screens]`

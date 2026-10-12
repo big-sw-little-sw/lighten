@@ -108,7 +108,7 @@ internal fun actionLabel(action: ReconciliationAction): String = when (action) {
 /** A Browse row's note. Its details use it as the state line too. */
 internal fun observationNote(observation: CandidateObservation): String = when (observation.kind) {
     CandidateObservation.Kind.PENDING -> "checking…"
-    CandidateObservation.Kind.DIRECTORY -> "still in your home"
+    CandidateObservation.Kind.DIRECTORY -> "not moved yet"
     CandidateObservation.Kind.LINK -> ALREADY_A_LINK
     CandidateObservation.Kind.MISSING -> "not created yet"
     CandidateObservation.Kind.REGULAR_FILE, CandidateObservation.Kind.OTHER -> "not a directory"

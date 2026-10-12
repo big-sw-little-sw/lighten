@@ -513,7 +513,7 @@ class CandidateCatalogTest {
         assertTrue(snapshot.definitions.all { d -> d.app != null })
         // Each caution names the command that undoes the move and what Lighten does next.
         val cautioned = snapshot.definitions.filter { d -> d.caution != null }
-        assertEquals(listOf(".local/share/uv/tools", ".sdkman/tmp", ".cache/deno", ".cache/Cypress"), cautioned.map { d -> d.originalPath })
+        assertEquals(listOf(".sdkman/tmp", ".cache/deno", ".cache/Cypress"), cautioned.map { d -> d.originalPath })
         assertTrue(cautioned.all { d -> d.caution.orEmpty().endsWith("Lighten then asks which directory to keep.") }, cautioned.toString())
         assertEquals(HOME.resolve(".jbang/cache"), snapshot.definitions.single { d -> d.app == "JBang" }.sourcePath)
         for (app in listOf("Gradle", "SDKMAN", "Yarn", "pnpm", "Electron", "uv", "pixi")) {

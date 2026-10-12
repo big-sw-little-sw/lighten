@@ -36,8 +36,7 @@
       "directories": [
         {"path": ".cache/uv", "advice": "consider", "reason": "uv cache"},
         {"path": ".local/share/uv/python", "advice": "consider", "reason": "uv-managed Python installations"},
-        {"path": ".local/share/uv/tools", "advice": "consider", "reason": "uv tools and uvx environments",
-         "caution": "Uninstalling the last uv tool removes the link, and the next `uv tool install` creates a directory in its place. Lighten then asks which directory to keep."}
+        {"path": ".local/share/uv/tools", "advice": "consider", "reason": "uv tools and uvx environments"}
       ]
     },
     {
