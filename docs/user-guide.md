@@ -207,6 +207,14 @@ Each directory has a mark:
 - `⊘` you ignore it, so Lighten leaves it alone. Press `x` to stop ignoring
   it.
 
+Beside each directory, a note says what Lighten found there:
+
+- `still in your home`: the directory is there and has not moved yet.
+- `not created yet`: the tool has not made the directory yet. You can add it
+  now.
+- `already a link`: the directory is a link. If you made the link, see "Take
+  over links you made" below.
+
 `Space` on a `●` row removes it again. A directory that you remove stays in
 the list until you leave Browse, so `Space` can add it back. Adding and
 removing change only what Configuration shows. The file changes when you

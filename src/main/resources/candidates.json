@@ -35,8 +35,9 @@
       "category": "Python",
       "directories": [
         {"path": ".cache/uv", "advice": "consider", "reason": "uv cache"},
-        {"path": ".local/share/uv", "advice": "consider", "reason": "uv-managed Python installations"},
-        {"path": ".local/share/uv/tools", "advice": "consider", "reason": "uv tools and uvx environments"}
+        {"path": ".local/share/uv/python", "advice": "consider", "reason": "uv-managed Python installations"},
+        {"path": ".local/share/uv/tools", "advice": "consider", "reason": "uv tools and uvx environments",
+         "caution": "Uninstalling the last uv tool removes the link, and the next `uv tool install` creates a directory in its place. Lighten then asks which directory to keep."}
       ]
     },
     {
@@ -64,7 +65,8 @@
       "name": "pipx",
       "category": "Python",
       "directories": [
-        {"path": ".local/pipx/venvs", "advice": "consider", "reason": "pipx virtual environments"}
+        {"path": ".local/share/pipx/venvs", "advice": "consider", "reason": "pipx virtual environments"},
+        {"path": ".local/pipx/venvs", "advice": "consider", "reason": "pipx virtual environments in the older location, which pipx still uses when it exists"}
       ]
     },
     {
@@ -271,7 +273,8 @@
       "name": "Go",
       "category": "Go",
       "directories": [
-        {"path": ".cache/go-build", "advice": "consider", "reason": "Go build cache"}
+        {"path": ".cache/go-build", "advice": "consider", "reason": "Go build cache"},
+        {"path": "go/pkg", "advice": "consider", "reason": "Go module cache and downloaded Go toolchains"}
       ]
     },
     {

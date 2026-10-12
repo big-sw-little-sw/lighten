@@ -87,6 +87,7 @@ class WordingTest {
         )
         assertEquals("checking…", note(CandidateObservation.Kind.PENDING))
         assertEquals("not created yet", note(CandidateObservation.Kind.MISSING))
+        assertEquals("still in your home", note(CandidateObservation.Kind.DIRECTORY))
         assertEquals("already a link", note(CandidateObservation.Kind.LINK))
         assertEquals("not a directory", note(CandidateObservation.Kind.REGULAR_FILE))
         assertEquals("can't read: permission denied", note(CandidateObservation.Kind.INACCESSIBLE, CandidateObservation.Reason.ACCESS_DENIED))

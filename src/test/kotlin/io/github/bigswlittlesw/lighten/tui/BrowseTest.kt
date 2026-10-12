@@ -156,6 +156,18 @@ class BrowseTest {
         }
     }
 
+    /** A plain directory's note says that it has not moved yet, on its row and in its Details. */
+    @Test fun plainDirectoryIsStillInYourHome() {
+        val root = fixture()
+        SetupDiscoveryFixture().use { workers ->
+            val ui = ui(root, workers); locations(ui, root, root.resolve("shared.json"))
+            key(ui, 'b'); await(workers, ui); choose(ui, ".m2")
+            assertTrue(Regex("○ \\.m2 +still in your home").containsMatchIn(render(ui)), render(ui))
+            enter(ui)
+            assertTrue(all(ui).contains("State: still in your home"), all(ui))
+        }
+    }
+
     @Test fun missingCandidateCanBeAddedEditedRefreshedAndSavedBeforeTheAppCreatesIt() {
         val root = fixture()
         SetupDiscoveryFixture().use { workers ->
@@ -292,7 +304,7 @@ class BrowseTest {
             val list = render(ui)
             // The built-in list calls .m2 Maven and Consider; your list calls it Build tools and usually not needed.
             assertTrue(list.contains("Build tools") && !list.contains("Maven"), list)
-            assertTrue(list.contains(".m2                           usually not needed"), list)
+            assertTrue(list.contains(".m2                           still in your home · usually not needed"), list)
             // Only the built-in list names .cache/example, as usually not needed, so it alone is hidden.
             assertTrue(list.contains("1 usually not needed, hidden") && !list.contains(".cache/example"), list)
             choose(ui, ".m2"); enter(ui)
