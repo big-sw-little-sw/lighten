@@ -297,6 +297,7 @@ Credentials, configuration and startup scripts that a shell sources stay in the 
 - `[skipped: .cache/bazelisk, add when users report versions piling up]`
 - `[skipped: .local/share/Google (Android Studio plugins), add when users report it large]`
 - `[skipped: keeping hard links when moving, add when users move Hunter or similar caches and ask about the space]`
+- `[skipped: a caution on .local/share/uv/tools, add when users report the conflict after they uninstall their last uv tool]`
 - `[skipped: .local/share/JetBrains/Toolbox/apps; Toolbox follows the link, lists each IDE twice, and uninstalling one copy deletes the files of both; add when Toolbox keeps the link path]`
 
 ## TUI
