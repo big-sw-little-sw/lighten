@@ -102,8 +102,30 @@ class CandidateParser {
                 }
                 val reason = note(directory.reason, index, record, "reason", "Reason")
                 val caution = note(directory.caution, index, record, "caution", "Caution")
-                CandidateDefinition(resolved, source, index, record, path, app, category, directory.advice, reason, caution)
+                CandidateDefinition(
+                    resolved, source, index, record, path, app, category, directory.advice, reason, caution,
+                    eachSubdirectory(directory, index, record),
+                )
             }
+        }
+
+        private fun eachSubdirectory(directory: DirectoryFile, index: Int, location: String): CandidateDefinition.EachSubdirectory? {
+            val keep = directory.keep
+            if (!directory.eachSubdirectory) {
+                if (keep != null) throw invalid(Kind.SCHEMA, index, location, "keep", "keep needs \"each-subdirectory\": true")
+                return null
+            }
+            if (keep.orEmpty().size > MAX_RECORDS) throw invalid(Kind.LIMIT, index, location, "keep", "Too many keep names")
+            keep.orEmpty().forEach { name ->
+                bounded(name, index, location, "keep")
+                try {
+                    validateKeepName(name)
+                } catch (e: IllegalArgumentException) {
+                    // validateKeepName's failures all have a message.
+                    throw invalid(Kind.UNSAFE_PATH, index, location, "keep", e.message!!)
+                }
+            }
+            return CandidateDefinition.EachSubdirectory.of(keep.orEmpty())
         }
 
         /** A record's optional free text, such as its reason: bounded, and nonblank when given. */
@@ -153,6 +175,12 @@ internal fun validateCandidatePath(path: String) {
     }
 }
 
+/** A keep name is one directory name: a safe relative path of a single segment, not `.`. */
+internal fun validateKeepName(name: String) {
+    validateCandidatePath(name)
+    require(!name.contains('/') && name != ".") { "A keep name must be one directory name, without /" }
+}
+
 internal fun resolveCandidatePath(root: Path, path: String): Path {
     validateCandidatePath(path)
     val resolved = root.resolve(path).normalize()
@@ -171,9 +199,11 @@ internal data class CandidateListFile(val apps: List<AppFile>? = null, val direc
 @SerialName("app")
 internal data class AppFile(val name: String, val category: String? = null, val directories: List<DirectoryFile>)
 
+/** With `each-subdirectory`, `path` is the parent whose subdirectories are suggested, except those `keep` names. */
 @Serializable
 @SerialName("directory")
 internal data class DirectoryFile(
     val path: String, val advice: CandidateDefinition.Advice? = null, val reason: String? = null,
-    val caution: String? = null,
+    val caution: String? = null, @SerialName("each-subdirectory") val eachSubdirectory: Boolean = false,
+    val keep: List<String>? = null,
 )

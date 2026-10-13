@@ -590,7 +590,7 @@ printf '{"lighten": {"source-root": "%s", "target-root": "%s", "suggestion-list"
   "$H" "$L" "$C/list.json" "$H" > "$C/config.json"
 disk() { (cd "$C" && find home local storage \( -type l -printf '%M %p -> %l\n' \) -o -printf '%M %p\n' | LC_ALL=C sort); }
 before=$(disk)
-line=$(TERM=xterm-256color expect "$here/takeover.exp" "$C/takeover.log" "$binary" -c "$C/config.json")
+line=$(TERM=xterm-256color expect "$here/browse.exp" "$C/takeover.log" "End L" "$binary" -c "$C/config.json")
 check "TUI ran ($line)" [ $? -eq 0 ]
 python3 "$here/render.py" "$C/takeover.log" 120x40 > "$C/screens.txt"
 awk '/^--- /{n++} {print > (dir "/screen-" n ".txt")}' dir="$C" "$C/screens.txt"
@@ -632,7 +632,7 @@ printf '{"lighten": {"source-root": "%s", "target-root": "%s", "suggestion-list"
 disk() { (cd "$C" && find home local disk \( -type l -printf '%M %p -> %l\n' \) -o -printf '%M %p\n' | LC_ALL=C sort); }
 texts() { echo "$(readlink "$H/.local-heavy") $(readlink "$H/.cache/JetBrains") $(readlink "$H/.cargo") $(readlink "$H/.m2")"; }
 before=$(disk)
-line=$(TERM=xterm-256color expect "$here/takeover.exp" "$C/takeover.log" "$binary" -c "$C/config.json")
+line=$(TERM=xterm-256color expect "$here/browse.exp" "$C/takeover.log" "End L" "$binary" -c "$C/config.json")
 check "TUI ran ($line)" [ $? -eq 0 ]
 python3 "$here/render.py" "$C/takeover.log" 120x40 > "$C/screens.txt"
 awk '/^--- /{n++} {print > (dir "/screen-" n ".txt")}' dir="$C" "$C/screens.txt"
@@ -666,6 +666,47 @@ check "nothing on disk changed after the refused apply" [ "$before" = "$(disk)" 
 end
 mkdir -p "$results/take-over-dotfiles"
 cp "$C"/*.* "$results/take-over-dotfiles/"
+rm -rf "$short"
+
+# The built-in list suggests each subdirectory of ~/.gradle but caches and init.d, and the dependency cache inside
+# caches. With only found directories shown, Space on the first heading, JVM, adds them all. Apply moves them, and
+# the files, caches and init.d stay in the home.
+short=$(mktemp -d /tmp/lighten-e2e.XXXXXX)
+begin each-subdirectory "Browse adds each subdirectory of a Gradle home but its keep list; apply moves them and plan converges" "$short"
+G=$H/.gradle
+mkdir -p "$G/caches/modules-2" "$G/wrapper/dists" "$G/daemon/8.10" "$G/native" "$G/.tmp" "$G/init.d"
+fill "$G/caches/modules-2"
+echo 'allprojects {}' > "$G/init.d/init.gradle"
+echo 'org.gradle.daemon=true' > "$G/gradle.properties"
+printf '{"lighten": {"source-root": "%s", "target-root": "%s", "ignored-source-paths": ["%s/ignored"]}}\n' \
+  "$H" "$L" "$H" > "$C/config.json"
+moved="caches/modules-2 daemon native .tmp wrapper"
+cache=$(tree "$G/caches/modules-2")
+before=$(snapshot)
+line=$(TERM=xterm-256color expect "$here/browse.exp" "$C/browse.log" "f Home Space" "$binary" -c "$C/config.json")
+check "TUI ran ($line)" [ $? -eq 0 ]
+python3 "$here/render.py" "$C/browse.log" 120x40 > "$C/screens.txt"
+awk '/^--- /{n++} {print > (dir "/screen-" n ".txt")}' dir="$C" "$C/screens.txt"
+for kept in caches init.d; do
+  check "Browse keeps $kept in the home" grep -qE -- "− \.gradle/$kept +the list keeps this in your home" "$C/screen-1.txt"
+done
+check "Browse offers no file and not .gradle itself" \
+  bash -c '! grep -qE -- "gradle\.properties|[●○−] \.gradle( |┃)" "$1"' _ "$C/screen-1.txt"
+check "Space on JVM adds the five directories" grep -qE -- "● JVM +5 of 5 added" "$C/screen-3.txt"
+check "nothing on disk changed in the TUI" [ "$before" = "$(snapshot)" ]
+got=$(jq -c '[.lighten.relocations[]["source-path"]] | sort' "$C/config.json")
+want=$(for d in $moved; do echo "$G/$d"; done | jq -Rnc '[inputs] | sort')
+check "the file has each directory but the kept ones ($got)" [ "$got" = "$want" ]
+applies
+for d in $moved; do check "$d is a link to the target" links_to "$G/$d" "$L/.gradle/$d"; done
+for kept in caches init.d; do check "$kept stays a directory in the home" is_dir "$G/$kept"; done
+check "init.d keeps its script" [ "$(cat "$G/init.d/init.gradle")" = 'allprojects {}' ]
+check "gradle.properties stays a file in the home" [ -f "$G/gradle.properties" -a ! -L "$G/gradle.properties" ]
+check "the moved cache keeps its contents" [ "$cache" = "$(tree "$G/caches/modules-2")" ]
+converges
+end
+mkdir -p "$results/each-subdirectory"
+cp "$C"/*.* "$results/each-subdirectory/"
 rm -rf "$short"
 
 # --- the TUI and plan --json tell the same story

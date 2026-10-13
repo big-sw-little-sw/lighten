@@ -110,6 +110,11 @@ To add a link that the user made by hand to the configuration as it is: a reloca
 Code: `BrowseDraft.takeOver`, `BrowseDraft.TakeOver`, `BrowseAction.TakeOverAll`; what discovery saw is `CandidateObservation.Link`.
 _Avoid_: adopt (that is **Keep target**), import, track
 
+**Each subdirectory, keep list**:
+A suggestion that names a tool's directory, not a directory to move. Browse suggests each subdirectory of it that it finds, except those on the keep list. Files in the tool's directory always stay in the home.
+Code: `CandidateDefinition.eachSubdirectory` and its `keep`; in the file, `each-subdirectory` and `keep`. Discovery lists the tool's directory into `CandidateObservation.subdirectories`.
+_Avoid_: wildcard, glob, children, exclude list
+
 **Category, app**:
 The two levels that Browse uses to group suggestions: first a category, for example Python, then an app, for example uv.
 Code: `CandidateDefinition.category`, `CandidateDefinition.app`.

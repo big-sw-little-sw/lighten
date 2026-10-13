@@ -12,6 +12,7 @@ import io.github.bigswlittlesw.lighten.discovery.CandidateDiscovery.SourceStatus
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Kind
 import io.github.bigswlittlesw.lighten.discovery.CandidateObservation.Reason
 import io.github.bigswlittlesw.lighten.HANG_LIMIT
+import io.github.bigswlittlesw.lighten.diskTree
 import io.github.bigswlittlesw.lighten.pollUntil
 import io.github.bigswlittlesw.lighten.withoutHanging
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -541,6 +542,89 @@ class CandidateDiscoveryTest {
         } finally { gate.release.countDown() }
     }
 
+    /**
+     * An each-subdirectory suggestion lists its parent once per check, then inspects each subdirectory found. A kept
+     * subdirectory is still a row, and the parent is no row's ancestor. A subdirectory made later is a new row on the
+     * next check. Discovery never changes the disk.
+     */
+    @Test fun eachSubdirectoryListsItsParentOnceAndFindsNewSubdirectories() {
+        val home = temporary.toRealPath()
+        val gradle = Files.createDirectories(home.resolve(".gradle"))
+        for (name in listOf("caches", "init.d", ".tmp")) Files.createDirectory(gradle.resolve(name))
+        Files.writeString(gradle.resolve("gradle.properties"), "")
+        val listings = AtomicInteger()
+        val metadata = CandidateMetadata(object : CandidateMetadata.Access() {
+            override fun subdirectories(directory: Path): List<Path> {
+                listings.incrementAndGet()
+                return super.subdirectories(directory)
+            }
+        })
+        val workers = Workers()
+        CandidateDiscovery(workers, AtomicLong()::get, { p -> bytes("{}") }, { root ->
+            CandidateParser().parse(CandidateCatalog.BUNDLED, root, bytes(GRADLE_LIST))
+        }, metadata).use { discovery ->
+            val before = diskTree(home)
+            discovery.refresh(home, null)
+            val result = awaitResult(discovery, ::finished)
+            assertEquals(1, listings.get())
+            assertEquals(
+                listOf(".cache/uv", ".gradle", ".gradle/.tmp", ".gradle/caches", ".gradle/init.d"),
+                result.candidates.map { home.relativize(it.catalog.sourcePath).toString() },
+            )
+            val parent = row(result, gradle)
+            assertTrue(parent.catalog.listsSubdirectories)
+            assertEquals(listOf(".tmp", "caches", "init.d").map(gradle::resolve), parent.observation.subdirectories)
+            val caches = row(result, gradle.resolve("caches"))
+            assertEquals(Kind.DIRECTORY, caches.observation.kind)
+            assertFalse(caches.catalog.onKeepList)
+            assertEquals(listOf<Path>(), caches.ancestors)
+            assertTrue(row(result, gradle.resolve("init.d")).catalog.onKeepList)
+            assertEquals(before, diskTree(home))
+            Files.createDirectory(gradle.resolve("native"))
+            discovery.refresh(home, null)
+            val again = awaitResult(discovery) { finished(it) && it.candidates.any { c -> c.catalog.sourcePath.endsWith("native") } }
+            assertEquals(Kind.DIRECTORY, row(again, gradle.resolve("native")).observation.kind)
+            assertEquals(2, listings.get())
+        }
+    }
+
+    /**
+     * Listing a parent is part of its inspection and has the same time limit. A listing that takes too long leaves the
+     * parent unknown with no subdirectories, and its late result is refused.
+     */
+    @Test fun aParentListingThatTakesTooLongListsNothing() {
+        val gate = Gate()
+        val clock = AtomicLong()
+        val workers = Workers()
+        val home = temporary.toRealPath()
+        Files.createDirectories(home.resolve(".gradle/caches"))
+        val metadata = CandidateMetadata(object : CandidateMetadata.Access() {
+            override fun subdirectories(directory: Path): List<Path> {
+                gate.block()
+                return super.subdirectories(directory)
+            }
+        })
+        try {
+            CandidateDiscovery(workers, clock::get, { p -> bytes("{}") }, { root ->
+                CandidateParser().parse(CandidateCatalog.BUNDLED, root, bytes(GRADLE_LIST))
+            }, metadata).use { discovery ->
+                discovery.refresh(home, null)
+                assertTrue(gate.entered.await(HANG_LIMIT.toSeconds(), TimeUnit.SECONDS))
+                clock.set(METADATA_NANOS)
+                val timed = discovery.snapshot()
+                val parent = row(timed, home.resolve(".gradle"))
+                assertEquals(Kind.UNKNOWN, parent.observation.kind)
+                assertTrue(parent.observation.diagnostics.any { d -> d.reason == Reason.DEADLINE })
+                assertNull(parent.observation.subdirectories)
+                gate.release.countDown()
+                drain(workers)
+                val late = discovery.snapshot()
+                assertEquals(Kind.UNKNOWN, row(late, home.resolve(".gradle")).observation.kind)
+                assertTrue(late.candidates.none { it.catalog.sourcePath.startsWith(home.resolve(".gradle/caches")) })
+            }
+        } finally { gate.release.countDown() }
+    }
+
     @Test fun sharedTimeoutDropsItsCandidatesUntilAReadSucceeds() {
         val gate = Gate()
         val workers = Workers()
@@ -575,6 +659,9 @@ class CandidateDiscoveryTest {
     }
 
     companion object {
+        private const val GRADLE_LIST = """{"directories": [{"path": ".cache/uv"},
+            {"path": ".gradle", "each-subdirectory": true, "keep": ["init.d"]}]}"""
+
         private fun discovery(workers: Workers, clock: AtomicLong, reader: (Path) -> ByteArray,
                               paths: String, metadata: CandidateMetadata): CandidateDiscovery {
             val json = paths.split(",").joinToString(", ", "{\"directories\": [", "]}") { path -> "{\"path\": \"$path\"}" }

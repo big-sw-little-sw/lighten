@@ -28,11 +28,14 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - The built-in list is parsed on the calling thread, from bytes read once per process.
  * - The user's list is read on its own thread.
  * - A run thread resolves the source root, then inspects the suggestions, [Workers.n] at a time, in list order.
- *   Paths that only the user's list names are inspected in a second batch, after that list is accepted.
+ *   It lists the parent of each each-subdirectory suggestion as part of its inspection, then inspects the
+ *   subdirectories found. Paths that only the user's list names are inspected in a second batch, after that list
+ *   is accepted.
  * - `snapshot` reads what the threads recorded and applies the time limits.
  *
  * Reading the user's list, and each inspection of the root or a suggestion, has five seconds from the start of
- * its disk access. A later result is refused, even when no snapshot was taken at the time limit.
+ * its disk access. A parent's listing is part of its inspection, so it shares that time limit. A later result is
+ * refused, even when no snapshot was taken at the time limit.
  *
  * Each refresh starts a new generation. Older work stops before its next path and its results are dropped, so rows
  * show as pending until the new generation inspects them. A list that fails to read gives no suggestions.
@@ -57,6 +60,8 @@ class CandidateDiscovery internal constructor(
     private val inspections = HashMap<Path, Attempt<CandidateObservation>>()
     // Paths handed to a batch in this generation, so a path both lists name is inspected once.
     private val scheduled = HashSet<Path>()
+    // The scheduled paths that an each-subdirectory suggestion names as its parent: their inspection lists them.
+    private val parents = HashSet<Path>()
 
     constructor() : this(PROCESS_WORKERS, System::nanoTime, ::readShared, CandidateCatalog::bundled, CandidateMetadata())
 
@@ -78,15 +83,19 @@ class CandidateDiscovery internal constructor(
 
     /**
      * The result's collections are read-only copies, and its observations never change. It gives no total size.
-     * A candidate's `ancestors` are the other suggestions that contain it.
+     * A candidate's `ancestors` are the other suggestions that contain it. Neither the parent of an each-subdirectory
+     * suggestion nor a subdirectory on its keep list is one of them, as neither is suggested itself.
      */
     @Synchronized
     fun snapshot(): Result {
         val request = this.request ?: return Result(generation, null, listOf(), listOf(), null)
         val sources = currentSources()
         val rootFailure = rootFailure(request.root)
-        val candidates = CandidateCatalog.merge(sources.mapNotNull { it.catalog }).candidates
-        val identities = candidates.mapTo(HashSet()) { it.sourcePath }
+        val subdirectories = if (rootFailure != null) mapOf() else parents.mapNotNull { parent ->
+            observe(parent)?.subdirectories?.let { parent to it }
+        }.toMap()
+        val candidates = CandidateCatalog.merge(sources.mapNotNull { it.catalog }, subdirectories).candidates
+        val identities = candidates.filterNot { it.listsSubdirectories || it.onKeepList }.mapTo(HashSet()) { it.sourcePath }
         val rows = candidates.map { candidate ->
             val path = candidate.sourcePath
             val observation = rootFailure?.let { CandidateObservation.unknown(path, generation, it.reason, it.detail) }
@@ -109,6 +118,7 @@ class CandidateDiscovery internal constructor(
         anchor = null
         inspections.clear()
         scheduled.clear()
+        parents.clear()
     }
 
     @Synchronized
@@ -150,10 +160,17 @@ class CandidateDiscovery internal constructor(
         if (paths.isNotEmpty()) workers.chain { inspectBatch(generation, paths) }
     }
 
-    /** Takes the paths of an accepted list that no earlier batch of this generation has taken. */
+    /**
+     * Takes the paths of an accepted list that no earlier batch of this generation has taken, and notes which of its
+     * paths to list. A path that another list already took is listed too, when this list asks.
+     */
     private fun schedule(outcome: SourceOutcome): List<Path> {
         if (outcome.status != SourceStatus.CURRENT) return listOf()
-        return outcome.catalog?.definitions.orEmpty().map { it.sourcePath }.filter { scheduled.add(it) }
+        val definitions = outcome.catalog?.definitions.orEmpty()
+        val taken = definitions.map { it.sourcePath }.filter { scheduled.add(it) }
+        val listed = definitions.filter { it.eachSubdirectory != null }.map { it.sourcePath }.filter { parents.add(it) }
+        // A parent taken earlier as a plain path has been inspected without its listing, so it is inspected again.
+        return taken + listed.filter { it !in taken }
     }
 
     // Both run on a chained run thread: the previous run has returned, so this one has all `workers.n` slots.
@@ -162,10 +179,21 @@ class CandidateDiscovery internal constructor(
         inspectBatch(generation, paths)
     }
 
+    /** Inspects `paths`, listing the parents among them, then inspects the subdirectories found that are new. */
     private fun inspectBatch(generation: Long, paths: List<Path>) {
         val anchor = synchronized(this) { usableAnchor(generation) } ?: return
+        inspect(generation, anchor, paths)
+        val subdirectories = synchronized(this) {
+            if (this.generation != generation) return
+            paths.filter { it in parents }.flatMap { observe(it)?.subdirectories.orEmpty() }.filter { scheduled.add(it) }
+        }
+        inspect(generation, anchor, subdirectories)
+    }
+
+    private fun inspect(generation: Long, anchor: CandidateMetadata.Anchor, paths: List<Path>) {
+        val listed = synchronized(this) { paths.filter { it in parents }.toSet() }
         mapBounded(paths, workers.n, { synchronized(this) { this.generation != generation } }) { path ->
-            attempt(generation, { inspections[path] = it }) { metadata.inspect(anchor, path, generation) }
+            attempt(generation, { inspections[path] = it }) { metadata.inspect(anchor, path, generation, path in listed) }
         }
     }
 

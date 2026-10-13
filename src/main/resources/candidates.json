@@ -36,7 +36,8 @@
       "directories": [
         {"path": ".cache/uv", "advice": "consider", "reason": "uv cache"},
         {"path": ".local/share/uv/python", "advice": "consider", "reason": "uv-managed Python installations"},
-        {"path": ".local/share/uv/tools", "advice": "consider", "reason": "uv tools and uvx environments"}
+        {"path": ".local/share/uv/tools", "advice": "consider", "reason": "uv tools and uvx environments"},
+        {"path": ".local/share/uv", "each-subdirectory": true, "keep": ["credentials"], "advice": "consider", "reason": "Other data that uv keeps in this directory"}
       ]
     },
     {
@@ -88,7 +89,10 @@
       "name": "Cargo",
       "category": "Rust",
       "directories": [
-        {"path": ".cargo", "advice": "consider", "reason": "Rust toolchain and package state"}
+        {"path": ".cargo/registry", "advice": "consider", "reason": "Cargo registry index and downloaded crates"},
+        {"path": ".cargo/git", "advice": "consider", "reason": "Git dependencies checked out by Cargo"},
+        {"path": ".cargo/bin", "advice": "consider", "reason": "Binaries installed by cargo install, and the rustup proxies"},
+        {"path": ".cargo", "each-subdirectory": true, "advice": "consider", "reason": "Other data that Cargo keeps in this directory"}
       ]
     },
     {
@@ -137,15 +141,24 @@
       "name": "Maven",
       "category": "JVM",
       "directories": [
-        {"path": ".m2", "advice": "consider", "reason": "Maven local repository"}
+        {"path": ".m2/repository", "advice": "consider", "reason": "Maven local repository"},
+        {"path": ".m2/wrapper", "advice": "consider", "reason": "Maven wrapper distributions"},
+        {"path": ".m2", "each-subdirectory": true, "keep": [".develocity", ".gradle-enterprise"], "advice": "consider", "reason": "Other data that Maven keeps in this directory"}
       ]
     },
     {
       "name": "Gradle",
       "category": "JVM",
       "directories": [
-        {"path": ".gradle/caches", "advice": "consider", "reason": "Gradle caches"},
-        {"path": ".gradle/wrapper", "advice": "consider", "reason": "Gradle wrapper distributions"}
+        {"path": ".gradle/wrapper", "advice": "consider", "reason": "Gradle wrapper distributions"},
+        {"path": ".gradle/jdks", "advice": "consider", "reason": "JDKs downloaded by Gradle toolchains"},
+        {"path": ".gradle/daemon", "advice": "consider", "reason": "Gradle daemon logs and registry"},
+        {"path": ".gradle/native", "advice": "consider", "reason": "Native libraries that Gradle extracts"},
+        {"path": ".gradle", "each-subdirectory": true, "keep": ["caches", "init.d", "develocity", "enterprise"], "advice": "consider", "reason": "Other data that Gradle keeps in this directory"},
+        {"path": ".gradle/caches/modules-2", "advice": "consider", "reason": "Gradle dependency cache"},
+        {"path": ".gradle/caches/transforms-4", "advice": "consider", "reason": "Gradle artifact transforms"},
+        {"path": ".gradle/caches/jars-9", "advice": "consider", "reason": "Gradle processed build script classes"},
+        {"path": ".gradle/caches/build-cache-1", "advice": "consider", "reason": "Gradle local build cache"}
       ]
     },
     {
@@ -199,7 +212,11 @@
       "name": "nvm",
       "category": "JavaScript",
       "directories": [
-        {"path": ".nvm", "advice": "consider", "reason": "Node.js versions managed by nvm"}
+        {"path": ".nvm/versions", "advice": "consider", "reason": "Node.js versions installed by nvm"},
+        {"path": ".nvm/alias", "advice": "consider", "reason": "nvm aliases, such as the default version"},
+        {"path": ".nvm/.cache", "advice": "consider", "reason": "Node.js downloads cached by nvm",
+         "caution": "`nvm cache clear` removes the link and creates an empty directory in its place. Lighten then asks which directory to keep."},
+        {"path": ".nvm", "each-subdirectory": true, "keep": [".git", ".github", "test"], "advice": "consider", "reason": "Other data that nvm keeps in this directory"}
       ]
     },
     {

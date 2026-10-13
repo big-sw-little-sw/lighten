@@ -108,6 +108,63 @@ class CandidateCatalogTest {
         assertTrue(parse(EMPTY).accepted())
     }
 
+    /**
+     * An each-subdirectory record keeps its parent path and its keep list. Merged with the subdirectories found, it is a
+     * candidate for the parent and for each subdirectory, right after it, and the keep list marks the kept ones.
+     */
+    @Test fun readsAnEachSubdirectoryRecordAndMergesTheSubdirectoriesFound() {
+        val snapshot = parse(
+            """
+            {"apps": [{"name": "Gradle", "directories": [
+              {"path": ".gradle", "each-subdirectory": true, "keep": ["init.d", ".develocity"], "reason": "Gradle data"},
+              {"path": ".m2", "each-subdirectory": true},
+              {"path": ".cache/uv", "each-subdirectory": false}]}]}
+            """,
+        )
+        assertTrue(snapshot.accepted(), snapshot.diagnostics.toString())
+        val (gradle, maven, uv) = snapshot.definitions
+        assertEquals(HOME.resolve(".gradle"), gradle.sourcePath)
+        assertEquals(listOf("init.d", ".develocity"), gradle.eachSubdirectory?.keep)
+        assertEquals(listOf<String>(), maven.eachSubdirectory?.keep)
+        assertNull(uv.eachSubdirectory)
+        val found = listOf("caches", "init.d").map { HOME.resolve(".gradle").resolve(it) }
+        val merged = CandidateCatalog.merge(listOf(snapshot), mapOf(HOME.resolve(".gradle") to found)).candidates
+        assertEquals(listOf(".gradle", ".gradle/caches", ".gradle/init.d", ".m2", ".cache/uv"), merged.map { HOME.relativize(it.sourcePath).toString() })
+        assertEquals(listOf(true, false, false, true, false), merged.map { it.listsSubdirectories })
+        assertEquals(listOf(false, false, true, false, false), merged.map { it.onKeepList })
+        assertEquals(gradle, merged[1].definitions.single())
+        // The built-in list's keep lists answer for any source root, without a disk read.
+        assertFalse(CandidateCatalog.builtInKeeps(HOME, HOME.resolve(".gradle/wrapper")))
+    }
+
+    /** `keep` needs `each-subdirectory`, and each keep name is one safe directory name. One bad name rejects the list. */
+    @Test fun rejectsAKeepListWithoutEachSubdirectoryAndUnsafeKeepNames() {
+        val withoutEach = parse("""{"directories": [{"path": ".gradle", "keep": ["init.d"]}]}""")
+        assertKind(CandidateDiagnostic.Kind.SCHEMA, withoutEach)
+        assertEquals("keep", withoutEach.diagnostics.single().key)
+        assertEquals("directories[0]", withoutEach.diagnostics.single().location)
+        assertEquals("keep needs \"each-subdirectory\": true", withoutEach.diagnostics.single().message)
+        for (name in listOf("init.d/scripts", ".", "..", "", " ", "/init.d", "~", "${'$'}HOME", "*", "a\\b", "init.d/")) {
+            val unsafe = parse("""{"directories": [{"path": ".gradle", "each-subdirectory": true, "keep": [${quoted(name)}]}]}""")
+            assertKind(CandidateDiagnostic.Kind.UNSAFE_PATH, unsafe)
+            assertEquals("keep", unsafe.diagnostics.single().key, name)
+        }
+        assertKind(
+            CandidateDiagnostic.Kind.SYNTAX,
+            parse("""{"directories": [{"path": ".gradle", "each-subdirectory": true, "keep": "init.d"}]}"""),
+        )
+        assertKind(
+            CandidateDiagnostic.Kind.SYNTAX,
+            parse("""{"directories": [{"path": ".gradle", "each-subdirectory": "yes"}]}"""),
+        )
+        // The parent must be under the source root, as any path.
+        assertKind(
+            CandidateDiagnostic.Kind.UNSAFE_PATH,
+            parse("""{"directories": [{"path": "/home/alex/.gradle", "each-subdirectory": true}]}"""),
+        )
+        assertKind(CandidateDiagnostic.Kind.UNSAFE_PATH, parse("""{"directories": [{"path": ".", "each-subdirectory": true}]}"""))
+    }
+
     @Test fun reportsDecodingFailuresWithPositionAndPath() {
         assertEquals(CandidateDiagnostic(SHARED, CandidateDiagnostic.Kind.SYNTAX, 0, 3, 24, "apps[0].directories[0]", "",
                 "Encountered an unknown key 'app' at apps[0].directories[0]"), parse("""
@@ -445,7 +502,7 @@ class CandidateCatalogTest {
     @Test fun bundledResourcePreservesPathsAndDescriptionsWithExplicitConsiderAdvice() {
         val snapshot = CandidateCatalog.bundled(HOME)
         assertTrue(snapshot.accepted(), snapshot.diagnostics.toString())
-        assertEquals(61, snapshot.definitions.size)
+        assertEquals(77, snapshot.definitions.size)
         assertEquals(listOf(
                 ".cache/JetBrains|Editors|JetBrains|JetBrains caches",
                 ".vscode-server|Editors|VS Code|VS Code server",
@@ -456,6 +513,7 @@ class CandidateCatalogTest {
                 ".cache/uv|Python|uv|uv cache",
                 ".local/share/uv/python|Python|uv|uv-managed Python installations",
                 ".local/share/uv/tools|Python|uv|uv tools and uvx environments",
+                ".local/share/uv|Python|uv|Other data that uv keeps in this directory",
                 ".cache/pypoetry|Python|Poetry|Poetry cache",
                 ".cache/pdm|Python|PDM|PDM cache",
                 ".cache/virtualenv|Python|virtualenv|virtualenv cache",
@@ -465,16 +523,28 @@ class CandidateCatalogTest {
                 ".cache/pixi|Python|pixi|pixi package cache, used instead of .cache/rattler when this directory exists",
                 ".pixi/envs|Python|pixi|pixi global tool environments",
                 ".pyenv/versions|Python|pyenv|Python versions installed by pyenv",
-                ".cargo|Rust|Cargo|Rust toolchain and package state",
+                ".cargo/registry|Rust|Cargo|Cargo registry index and downloaded crates",
+                ".cargo/git|Rust|Cargo|Git dependencies checked out by Cargo",
+                ".cargo/bin|Rust|Cargo|Binaries installed by cargo install, and the rustup proxies",
+                ".cargo|Rust|Cargo|Other data that Cargo keeps in this directory",
                 ".rustup|Rust|rustup|Rust toolchains",
                 ".conan2/p|C and C++|Conan|Conan package cache",
                 ".cache/vcpkg/archives|C and C++|vcpkg|vcpkg binary cache",
                 ".xmake/packages|C and C++|xmake|Packages installed by xmake",
                 ".hunter|C and C++|Hunter|Hunter package cache",
                 ".platformio/packages|C and C++|PlatformIO|PlatformIO toolchains, frameworks and tools",
-                ".m2|JVM|Maven|Maven local repository",
-                ".gradle/caches|JVM|Gradle|Gradle caches",
+                ".m2/repository|JVM|Maven|Maven local repository",
+                ".m2/wrapper|JVM|Maven|Maven wrapper distributions",
+                ".m2|JVM|Maven|Other data that Maven keeps in this directory",
                 ".gradle/wrapper|JVM|Gradle|Gradle wrapper distributions",
+                ".gradle/jdks|JVM|Gradle|JDKs downloaded by Gradle toolchains",
+                ".gradle/daemon|JVM|Gradle|Gradle daemon logs and registry",
+                ".gradle/native|JVM|Gradle|Native libraries that Gradle extracts",
+                ".gradle|JVM|Gradle|Other data that Gradle keeps in this directory",
+                ".gradle/caches/modules-2|JVM|Gradle|Gradle dependency cache",
+                ".gradle/caches/transforms-4|JVM|Gradle|Gradle artifact transforms",
+                ".gradle/caches/jars-9|JVM|Gradle|Gradle processed build script classes",
+                ".gradle/caches/build-cache-1|JVM|Gradle|Gradle local build cache",
                 ".jbang/cache|JVM|JBang|JBang compiled scripts, downloaded content, and cached JDKs",
                 ".sdkman/candidates|JVM|SDKMAN|SDKs installed by SDKMAN",
                 ".sdkman/tmp|JVM|SDKMAN|SDKMAN downloaded archives",
@@ -485,7 +555,10 @@ class CandidateCatalogTest {
                 ".local/share/pnpm/store|JavaScript|pnpm|pnpm package store",
                 ".pnpm-store|JavaScript|pnpm|legacy pnpm package store",
                 ".cache/node-gyp|JavaScript|node-gyp|node-gyp cache",
-                ".nvm|JavaScript|nvm|Node.js versions managed by nvm",
+                ".nvm/versions|JavaScript|nvm|Node.js versions installed by nvm",
+                ".nvm/alias|JavaScript|nvm|nvm aliases, such as the default version",
+                ".nvm/.cache|JavaScript|nvm|Node.js downloads cached by nvm",
+                ".nvm|JavaScript|nvm|Other data that nvm keeps in this directory",
                 ".bun/install/cache|JavaScript|Bun|Bun package cache",
                 ".volta|JavaScript|Volta|Volta, with the Node.js versions and tools it manages",
                 ".local/share/fnm/node-versions|JavaScript|fnm|Node.js versions managed by fnm",
@@ -513,9 +586,19 @@ class CandidateCatalogTest {
         assertTrue(snapshot.definitions.all { d -> d.app != null })
         // Each caution names the command that undoes the move and what Lighten does next.
         val cautioned = snapshot.definitions.filter { d -> d.caution != null }
-        assertEquals(listOf(".sdkman/tmp", ".cache/deno", ".cache/Cypress"), cautioned.map { d -> d.originalPath })
+        assertEquals(listOf(".sdkman/tmp", ".nvm/.cache", ".cache/deno", ".cache/Cypress"), cautioned.map { d -> d.originalPath })
         assertTrue(cautioned.all { d -> d.caution.orEmpty().endsWith("Lighten then asks which directory to keep.") }, cautioned.toString())
         assertEquals(HOME.resolve(".jbang/cache"), snapshot.definitions.single { d -> d.app == "JBang" }.sourcePath)
+        // Each tool directory keeps what holds credentials, configuration, or data its tool cannot reach through a link.
+        assertEquals(
+            listOf(
+                ".local/share/uv|credentials", ".cargo|", ".m2|.develocity,.gradle-enterprise",
+                ".gradle|caches,init.d,develocity,enterprise", ".nvm|.git,.github,test",
+            ),
+            snapshot.definitions.mapNotNull { d -> d.eachSubdirectory?.let { d.originalPath + "|" + it.keep.joinToString(",") } },
+        )
+        assertTrue(CandidateCatalog.builtInKeeps(HOME, HOME.resolve(".gradle/init.d")))
+        assertFalse(CandidateCatalog.builtInKeeps(HOME, HOME.resolve(".gradle/wrapper")))
         for (app in listOf("Gradle", "SDKMAN", "Yarn", "pnpm", "Electron", "uv", "pixi")) {
             val indices = snapshot.definitions.indices.filter { i -> snapshot.definitions.get(i).app == app }
             assertTrue(indices.size > 1, app)
@@ -554,7 +637,7 @@ class CandidateCatalogTest {
                 val result = catalogClass.getMethod("bundled", Path::class.java).invoke(catalog, HOME)
                 assertEquals(variant == "valid", result.javaClass.getMethod("accepted").invoke(result))
                 val definitions = result.javaClass.getMethod("getDefinitions").invoke(result) as List<*>
-                assertEquals(if (variant == "valid") 61 else 0, definitions.size)
+                assertEquals(if (variant == "valid") 77 else 0, definitions.size)
             }
         }
     }

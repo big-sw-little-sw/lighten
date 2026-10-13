@@ -230,6 +230,25 @@ class WorkspaceDetailsTest {
         }
     }
 
+    /**
+     * A relocation of a directory that the built-in list now keeps in the home stays, and its Details say so. One the
+     * list still suggests says nothing about it.
+     */
+    @Test
+    fun aRelocationThatTheBuiltInListKeepsSaysSo() {
+        val home = Files.createDirectories(root.resolve("gradle-home"))
+        Files.createDirectories(home.resolve(".gradle/init.d"))
+        Files.createDirectories(home.resolve(".gradle/wrapper"))
+        val config = Files.writeString(
+            root.resolve("gradle.json"),
+            """{"lighten": {"source-root": "$home", "target-root": "${root.resolve("local")}", "relocations": [
+              {"source-path": "${home.resolve(".gradle/init.d")}"}, {"source-path": "${home.resolve(".gradle/wrapper")}"}]}}""",
+        )
+        session = LightenSession(config)
+        assertTrue(squeezed(details("init.d")).contains(squeezed(KEPT_IN_CONFIGURATION)), details("init.d"))
+        assertFalse(squeezed(details("wrapper")).contains(squeezed(KEPT_IN_CONFIGURATION)), details("wrapper"))
+    }
+
     /** The Details pane with the list focused, tall enough that nothing scrolls. */
     private fun details(name: String): String = rightPane(screen(name, 200, 80), 200)
 

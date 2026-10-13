@@ -34,13 +34,19 @@ class BrowseDraft(
     /**
      * The draft's relocations in order, then the suggestions not in it, then the kept and ignored sources neither
      * lists.
+     *
+     * The parent of an each-subdirectory suggestion is not suggested itself, so it is listed only as a relocation, a
+     * kept or an ignored source.
      */
     fun entries(): List<Entry> {
         val candidates = discovery?.candidates.orEmpty().associateBy { it.catalog.sourcePath }
         val rows = sources.mapIndexed { row, path -> Entry(path, row, path?.let { candidates[it] }) }
         val used = sources.filterNotNull().toSet()
         return rows +
-            candidates.filterKeys { it !in used }.map { (path, candidate) -> Entry(path, null, candidate, path in ignored) } +
+            candidates.filter { (path, candidate) ->
+                path !in used && (!candidate.catalog.listsSubdirectories || path in kept || path in ignored)
+            }
+                .map { (path, candidate) -> Entry(path, null, candidate, path in ignored) } +
             (kept + ignored).filter { it !in used && it !in candidates }.map { Entry(it, null, null, it in ignored) }
     }
 
@@ -58,6 +64,8 @@ class BrowseDraft(
         if (link != null && link.path != path) {
             sources.indexOf(link.path).takeIf { it >= 0 }?.let { return Status.MovesWith(it, link.path) }
         }
+        // A source taken out during this visit can be added back, as any other.
+        if (entry.discovery?.catalog?.onKeepList == true && path !in kept) return Status.OnKeepList
         if (addable(entry, path)) return Status.CanAdd(path, null)
         if (link == null || link.path in sources) return Status.CannotAdd
         val problem = when {
@@ -128,6 +136,9 @@ class BrowseDraft(
 
         /** The link at or above the entry can't be taken over. */
         data class LinkProblem(val link: Link, val problem: Problem) : Status
+
+        /** A subdirectory that the list's keep list leaves in the home. */
+        data object OnKeepList : Status
 
         /** A file, a path that can't be read, or one not checked yet. */
         data object CannotAdd : Status

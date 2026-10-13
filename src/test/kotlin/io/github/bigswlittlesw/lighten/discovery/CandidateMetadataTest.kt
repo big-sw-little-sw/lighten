@@ -275,10 +275,62 @@ class CandidateMetadataTest {
         assertReason(result, Reason.CHANGED)
     }
 
-    @Test fun filesystemSeamExposesNoEnumerationOrContentOperations() {
+    /** The seam's one listing gives directory names; nothing reads a file. */
+    @Test fun filesystemSeamListsOnlySubdirectoriesAndReadsNoContent() {
         val names = HashSet<String>()
         for (method in CandidateMetadata.Access::class.java.declaredMethods) names.add(method.name)
-        assertEquals(setOf("attributes", "realPath", "readLink"), names)
+        assertEquals(setOf("attributes", "realPath", "readLink", "subdirectories"), names)
+    }
+
+    /**
+     * Asked to list, it gives the directories and the links to directories, hidden ones included, sorted. Files, links
+     * to files and broken links are left out. It never lists unless asked, and the disk does not change.
+     */
+    @Test fun listsOnlySubdirectoriesWhenAsked() {
+        val root = temporary.toRealPath()
+        val gradle = Files.createDirectories(root.resolve(".gradle"))
+        for (name in listOf("caches", "init.d", ".tmp")) Files.createDirectory(gradle.resolve(name))
+        Files.writeString(gradle.resolve("gradle.properties"), "org.gradle.daemon=true")
+        val storage = Files.createDirectories(root.resolve("storage/jdks"))
+        Files.createSymbolicLink(gradle.resolve("jdks"), storage)
+        Files.createSymbolicLink(gradle.resolve("to-file"), gradle.resolve("gradle.properties"))
+        Files.createSymbolicLink(gradle.resolve("broken"), root.resolve("gone"))
+        val before = diskTree(root)
+        val listed = CandidateMetadata().inspect(CandidateMetadata().anchor(root), gradle, 1, list = true)
+        assertState(listed, Kind.DIRECTORY)
+        assertEquals(listOf(".tmp", "caches", "init.d", "jdks").map(gradle::resolve), listed.subdirectories)
+        assertEquals(null, CandidateMetadata().inspect(CandidateMetadata().anchor(root), gradle, 1).subdirectories)
+        assertEquals(before, diskTree(root))
+    }
+
+    /**
+     * A parent that is a link, or inside a linked parent, is listed through the link, as the tool sees it. A missing
+     * parent has nothing to list, and a parent that can't be listed is a problem of its own.
+     */
+    @Test fun listsThroughLinksAndReportsAParentThatCannotBeListed() {
+        val root = Files.createDirectory(temporary.resolve("home")).toRealPath()
+        val storage = Files.createDirectories(temporary.resolve("storage/m2/repository")).parent
+        Files.createSymbolicLink(root.resolve(".m2"), storage)
+        Files.createDirectories(temporary.resolve("storage/share/uv/python"))
+        Files.createDirectories(root.resolve(".local"))
+        Files.createSymbolicLink(root.resolve(".local/share"), temporary.resolve("storage/share"))
+        val reader = CandidateMetadata()
+        val anchor = reader.anchor(root)
+        val linked = reader.inspect(anchor, root.resolve(".m2"), 1, list = true)
+        assertState(linked, Kind.LINK)
+        assertEquals(listOf(root.resolve(".m2/repository")), linked.subdirectories)
+        val inside = reader.inspect(anchor, root.resolve(".local/share/uv"), 1, list = true)
+        assertState(inside, Kind.BLOCKED_BY_LINK)
+        assertEquals(listOf(root.resolve(".local/share/uv/python")), inside.subdirectories)
+        val missing = reader.inspect(anchor, root.resolve(".cargo"), 1, list = true)
+        assertState(missing, Kind.MISSING)
+        assertEquals(null, missing.subdirectories)
+        val denied = CandidateMetadata(object : CandidateMetadata.Access() {
+            override fun subdirectories(directory: Path): List<Path> = throw AccessDeniedException(directory.toString())
+        }).inspect(anchor, root.resolve(".m2"), 1, list = true)
+        assertState(denied, Kind.INACCESSIBLE)
+        assertReason(denied, Reason.ACCESS_DENIED)
+        assertEquals(null, denied.subdirectories)
     }
 
     /** Fails on any probe outside `allowed`, and on resolving any path but the root and those in `resolvable`. */
