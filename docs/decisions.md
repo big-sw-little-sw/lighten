@@ -380,16 +380,16 @@ These entries were replaced or are history only. They use the names of their tim
 
 A list entry with `"each-subdirectory": true` names a tool's directory and a `keep` list. Browse lists that directory once per check, as part of its inspection and inside the same time limit, and shows each subdirectory found as a suggestion of its own. Hidden subdirectories count. Files are never suggested, so `keep` names only directories, each as one path segment. A new subdirectory is a new `○` row, and nothing is added or moved on its own. A relocation made before the list changed stays as it is: a whole tool directory keeps working, and Details say how to change over by hand; a directory now on the keep list stays, and Browse and the Workspace say that the list keeps it. Why: the list keeps up when a tool adds a data directory, and credentials, configuration and startup scripts still stay in the home. (#250)
 
-The built-in entries of this kind, each after a container test:
+Each entry of this kind also names the subdirectories that its tool usually makes, as ordinary entries. They show as `not created yet` before the tool is installed, so the link can be made first, which is Lighten's main purpose. The tool's directory never has a row of its own; when it can't be listed, the Details of each directory in it say so. The built-in entries of this kind, each after a container test, with links made before and after the tool is installed:
 
-- Gradle `.gradle`, keeping `caches`, `init.d`, `develocity` and `enterprise`. The last two hold Develocity access keys. Gradle 8.14 to 9.8 cannot open the configuration cache's keystore when `caches` or a version directory in it is a link, so `caches` stays, and four leaf entries name the large directories inside it: `modules-2`, `transforms-4`, `jars-9` and `build-cache-1`.
-- Maven `.m2`, keeping `.develocity` and `.gradle-enterprise`, which hold Develocity access keys.
-- Cargo `.cargo`, keeping nothing: its settings, credentials and `env` are files. `bin` holds the rustup proxies, which go with `.rustup`.
-- nvm `.nvm`, keeping its checkout (`.git`, `.github`, `test`) and `.cache`, because `nvm cache clear` deletes the link and makes a directory.
-- uv `.local/share/uv`, keeping `credentials`.
+- Gradle `.gradle`, naming `wrapper`, `jdks`, `daemon` and `native`, and keeping `caches`, `init.d`, `develocity` and `enterprise`. The last two hold Develocity access keys. Gradle 8.14 to 9.8 cannot open the configuration cache's keystore when `caches` or a version directory in it is a link, so `caches` stays, and four leaf entries name the large directories inside it: `modules-2`, `transforms-4`, `jars-9` and `build-cache-1`.
+- Maven `.m2`, naming `repository` and `wrapper`, and keeping `.develocity` and `.gradle-enterprise`, which hold Develocity access keys.
+- Cargo `.cargo`, naming `registry`, `git` and `bin`, and keeping nothing: its settings, credentials and `env` are files. `bin` holds the rustup proxies, which go with `.rustup`.
+- nvm `.nvm`, naming `versions`, `alias` and `.cache`, and keeping its checkout (`.git`, `.github`, `test`). `.cache` has a caution, because `nvm cache clear` deletes the link and makes a directory. A caution, not the keep list, covers a case that may or may not happen.
+- uv `.local/share/uv`, naming `python` and `tools`, and keeping `credentials`.
 
 - `[skipped: your list's keep lists on the Workspace, which reads only the built-in list without a disk read; add when users keep directories in their own lists]`
-- `[skipped: a row for a tool directory with no subdirectories, add when users ask why an installed tool has no rows]`
+- `[skipped: the other subdirectories the container tests found, such as Gradle's notifications and workers and Maven's mvnd, as named entries; they show once the tool makes them, add when users want to link them before installing]`
 - `[skipped: a guided change-over from a whole tool directory to its subdirectories, add when users ask]`
 - `[skipped: converting SDKMAN, pixi, JBang, Conan, xmake, PlatformIO, mise, asdf, pyenv, rbenv and Zed; their leaf entries already name the data, and some of their directories hold sourced scripts, add when a tool adds a data directory that a leaf misses]`
 - `[skipped: an entry kind for each subdirectory two levels down, such as .gradle/caches/*, add when Gradle renames its versioned cache directories]`

@@ -502,7 +502,7 @@ class CandidateCatalogTest {
     @Test fun bundledResourcePreservesPathsAndDescriptionsWithExplicitConsiderAdvice() {
         val snapshot = CandidateCatalog.bundled(HOME)
         assertTrue(snapshot.accepted(), snapshot.diagnostics.toString())
-        assertEquals(63, snapshot.definitions.size)
+        assertEquals(77, snapshot.definitions.size)
         assertEquals(listOf(
                 ".cache/JetBrains|Editors|JetBrains|JetBrains caches",
                 ".vscode-server|Editors|VS Code|VS Code server",
@@ -511,7 +511,9 @@ class CandidateCatalogTest {
                 ".local/share/zed/extensions|Editors|Zed|Zed extensions",
                 ".cache/pip|Python|pip|pip cache",
                 ".cache/uv|Python|uv|uv cache",
-                ".local/share/uv|Python|uv|uv-managed Python installations, tools and uvx environments",
+                ".local/share/uv/python|Python|uv|uv-managed Python installations",
+                ".local/share/uv/tools|Python|uv|uv tools and uvx environments",
+                ".local/share/uv|Python|uv|Other data that uv keeps in this directory",
                 ".cache/pypoetry|Python|Poetry|Poetry cache",
                 ".cache/pdm|Python|PDM|PDM cache",
                 ".cache/virtualenv|Python|virtualenv|virtualenv cache",
@@ -521,15 +523,24 @@ class CandidateCatalogTest {
                 ".cache/pixi|Python|pixi|pixi package cache, used instead of .cache/rattler when this directory exists",
                 ".pixi/envs|Python|pixi|pixi global tool environments",
                 ".pyenv/versions|Python|pyenv|Python versions installed by pyenv",
-                ".cargo|Rust|Cargo|Cargo registry, Git checkouts, installed binaries and rustup proxies",
+                ".cargo/registry|Rust|Cargo|Cargo registry index and downloaded crates",
+                ".cargo/git|Rust|Cargo|Git dependencies checked out by Cargo",
+                ".cargo/bin|Rust|Cargo|Binaries installed by cargo install, and the rustup proxies",
+                ".cargo|Rust|Cargo|Other data that Cargo keeps in this directory",
                 ".rustup|Rust|rustup|Rust toolchains",
                 ".conan2/p|C and C++|Conan|Conan package cache",
                 ".cache/vcpkg/archives|C and C++|vcpkg|vcpkg binary cache",
                 ".xmake/packages|C and C++|xmake|Packages installed by xmake",
                 ".hunter|C and C++|Hunter|Hunter package cache",
                 ".platformio/packages|C and C++|PlatformIO|PlatformIO toolchains, frameworks and tools",
-                ".m2|JVM|Maven|Maven local repository, wrapper distributions and Maven Daemon data",
-                ".gradle|JVM|Gradle|Gradle wrapper distributions, daemons, downloaded JDKs and native libraries",
+                ".m2/repository|JVM|Maven|Maven local repository",
+                ".m2/wrapper|JVM|Maven|Maven wrapper distributions",
+                ".m2|JVM|Maven|Other data that Maven keeps in this directory",
+                ".gradle/wrapper|JVM|Gradle|Gradle wrapper distributions",
+                ".gradle/jdks|JVM|Gradle|JDKs downloaded by Gradle toolchains",
+                ".gradle/daemon|JVM|Gradle|Gradle daemon logs and registry",
+                ".gradle/native|JVM|Gradle|Native libraries that Gradle extracts",
+                ".gradle|JVM|Gradle|Other data that Gradle keeps in this directory",
                 ".gradle/caches/modules-2|JVM|Gradle|Gradle dependency cache",
                 ".gradle/caches/transforms-4|JVM|Gradle|Gradle artifact transforms",
                 ".gradle/caches/jars-9|JVM|Gradle|Gradle processed build script classes",
@@ -544,7 +555,10 @@ class CandidateCatalogTest {
                 ".local/share/pnpm/store|JavaScript|pnpm|pnpm package store",
                 ".pnpm-store|JavaScript|pnpm|legacy pnpm package store",
                 ".cache/node-gyp|JavaScript|node-gyp|node-gyp cache",
-                ".nvm|JavaScript|nvm|Node.js versions and aliases managed by nvm",
+                ".nvm/versions|JavaScript|nvm|Node.js versions installed by nvm",
+                ".nvm/alias|JavaScript|nvm|nvm aliases, such as the default version",
+                ".nvm/.cache|JavaScript|nvm|Node.js downloads cached by nvm",
+                ".nvm|JavaScript|nvm|Other data that nvm keeps in this directory",
                 ".bun/install/cache|JavaScript|Bun|Bun package cache",
                 ".volta|JavaScript|Volta|Volta, with the Node.js versions and tools it manages",
                 ".local/share/fnm/node-versions|JavaScript|fnm|Node.js versions managed by fnm",
@@ -572,14 +586,14 @@ class CandidateCatalogTest {
         assertTrue(snapshot.definitions.all { d -> d.app != null })
         // Each caution names the command that undoes the move and what Lighten does next.
         val cautioned = snapshot.definitions.filter { d -> d.caution != null }
-        assertEquals(listOf(".sdkman/tmp", ".cache/deno", ".cache/Cypress"), cautioned.map { d -> d.originalPath })
+        assertEquals(listOf(".sdkman/tmp", ".nvm/.cache", ".cache/deno", ".cache/Cypress"), cautioned.map { d -> d.originalPath })
         assertTrue(cautioned.all { d -> d.caution.orEmpty().endsWith("Lighten then asks which directory to keep.") }, cautioned.toString())
         assertEquals(HOME.resolve(".jbang/cache"), snapshot.definitions.single { d -> d.app == "JBang" }.sourcePath)
         // Each tool directory keeps what holds credentials, configuration, or data its tool cannot reach through a link.
         assertEquals(
             listOf(
                 ".local/share/uv|credentials", ".cargo|", ".m2|.develocity,.gradle-enterprise",
-                ".gradle|caches,init.d,develocity,enterprise", ".nvm|.git,.github,test,.cache",
+                ".gradle|caches,init.d,develocity,enterprise", ".nvm|.git,.github,test",
             ),
             snapshot.definitions.mapNotNull { d -> d.eachSubdirectory?.let { d.originalPath + "|" + it.keep.joinToString(",") } },
         )
@@ -623,7 +637,7 @@ class CandidateCatalogTest {
                 val result = catalogClass.getMethod("bundled", Path::class.java).invoke(catalog, HOME)
                 assertEquals(variant == "valid", result.javaClass.getMethod("accepted").invoke(result))
                 val definitions = result.javaClass.getMethod("getDefinitions").invoke(result) as List<*>
-                assertEquals(if (variant == "valid") 63 else 0, definitions.size)
+                assertEquals(if (variant == "valid") 77 else 0, definitions.size)
             }
         }
     }

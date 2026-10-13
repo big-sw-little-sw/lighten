@@ -278,8 +278,12 @@ it finds as a row of its own. Hidden directories count too.
   the note `the list keeps this in your home` beside it.
 - A tool can make a new subdirectory later. Browse then shows it as a new `○`
   row. Lighten does not add it by itself.
-- If the tool's directory is not there yet, or Lighten cannot read it, Browse
-  shows the directory itself with `−` and a note that says why.
+- The list also names the subdirectories that the tool usually makes, such
+  as `~/.gradle/wrapper`. Browse shows them before you install the tool, with
+  the note `not created yet`. Add them, apply, and then install the tool: it
+  writes into storage from the start.
+- The tool's directory itself never has a row. If Lighten cannot read it,
+  the Details of each directory in it say so.
 
 The built-in list does this for Gradle, Maven, Cargo, nvm and uv.
 

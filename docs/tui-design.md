@@ -540,7 +540,7 @@ through Browse's `x`, and the list does not show it.
   row. `b` opens Browse. Enter, → or Tab move to the fields.
 - When there are no relocations, the list says how to add one. In dim text
   under `Storage locations`, it shows `No directories yet.`, then `Press b to
-  pick from 63 built-in suggestions (JetBrains, pip, Cargo, Conan, …), or a to
+  pick from 77 built-in suggestions (JetBrains, pip, Cargo, Conan, …), or a to
   type one yourself.` The count is the number of directories in the built-in
   list, counted as Browse counts them. The examples are the first app of each
   of the list's first four categories. Both come from the list, never from the
@@ -577,7 +577,7 @@ through Browse's `x`, and the list does not show it.
   - **Target root**
   - **Suggestion list**. Its placeholder is `optional; adds to built-in list`,
     which fits the 32-cell field at 80 columns. Its help is "Lighten already
-    includes 63 suggestions for common tools (JetBrains, pip, Cargo, Conan, …).
+    includes 77 suggestions for common tools (JetBrains, pip, Cargo, Conan, …).
     Use this field only to add a list of your own, for example one shared by
     your team. Both lists are merged; yours wins where they overlap." The count
     and examples come from the list, as in the empty list.
@@ -746,10 +746,14 @@ screen never says "candidate" or "draft".
   - A subdirectory on the keep list is `−` with the note `the list keeps this
     in your home`, and Space does nothing. A heading's count leaves it out, and
     Space on the heading skips it without a message.
-  - The tool's directory itself is not a row while it can be listed. When it
-    is missing or can't be listed, it is a `−` row with the observation's note
-    (`not created yet`, `can't read: …`), and Details say that the list
-    suggests each subdirectory, not the directory itself.
+  - The tool's directory itself is never a row. The list also names the
+    subdirectories that the tool usually makes, as ordinary entries, so they
+    show as `not created yet` before the tool is installed and can be added.
+    A subdirectory found on disk that the list names is one row, not two.
+  - When the tool's directory exists but can't be listed, the Details of each
+    directory in it say `Lighten can't list ~/.gradle (can't read: …), so
+    Browse shows only the directories in it that a list names.` A missing
+    tool directory says nothing: the tool is not installed yet.
   - A new subdirectory is a new `○` row after a check. Nothing is added or
     moved on its own.
   - A subdirectory that is a link, or inside a linked parent, follows the take

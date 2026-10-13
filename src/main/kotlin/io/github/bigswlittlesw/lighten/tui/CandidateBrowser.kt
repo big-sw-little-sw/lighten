@@ -263,7 +263,7 @@ internal class CandidateBrowser(keys: KeyEventHandler) {
                     is BrowseDraft.Status.MovesWith -> BrowseAction.Remove(status.row)
                     is BrowseDraft.Status.CanAdd -> addition(status)
                     BrowseDraft.Status.Ignored, is BrowseDraft.Status.LinkProblem, BrowseDraft.Status.CannotAdd,
-                    BrowseDraft.Status.EachSubdirectory, BrowseDraft.Status.OnKeepList,
+                    BrowseDraft.Status.OnKeepList,
                     -> null
                 }
             }
@@ -549,7 +549,7 @@ private fun noneToAdd(statuses: List<BrowseDraft.Status>): String = statuses.map
         BrowseDraft.Status.Ignored -> ALL_IGNORED
         is BrowseDraft.Status.LinkProblem -> ALL_LINK_PROBLEMS
         is BrowseDraft.Status.InDraft, is BrowseDraft.Status.MovesWith, is BrowseDraft.Status.CanAdd,
-        BrowseDraft.Status.CannotAdd, BrowseDraft.Status.EachSubdirectory, BrowseDraft.Status.OnKeepList,
+        BrowseDraft.Status.CannotAdd, BrowseDraft.Status.OnKeepList,
         -> null
     }
 }.distinct().singleOrNull() ?: NONE_CAN_BE_ADDED
@@ -561,7 +561,7 @@ private fun toggleKey(entry: BrowseDraft.Entry, draft: BrowseDraft): KeyHint? = 
         if (status.link == null) KeyHint("Space", "Add", description = ADD_SUGGESTION)
         else KeyHint("Space", "Take over", description = TAKE_OVER_LINK)
     BrowseDraft.Status.Ignored, is BrowseDraft.Status.LinkProblem, BrowseDraft.Status.CannotAdd,
-    BrowseDraft.Status.EachSubdirectory, BrowseDraft.Status.OnKeepList,
+    BrowseDraft.Status.OnKeepList,
     -> null
 }
 
@@ -583,9 +583,7 @@ private fun directoryRow(entry: BrowseDraft.Entry, draft: BrowseDraft, selected:
         is BrowseDraft.Status.InDraft, is BrowseDraft.Status.MovesWith -> ADDED_MARK
         BrowseDraft.Status.Ignored -> IGNORED_MARK
         is BrowseDraft.Status.CanAdd -> NOT_ADDED_MARK
-        is BrowseDraft.Status.LinkProblem, BrowseDraft.Status.CannotAdd, BrowseDraft.Status.EachSubdirectory,
-        BrowseDraft.Status.OnKeepList,
-        -> CANNOT_ADD_MARK
+        is BrowseDraft.Status.LinkProblem, BrowseDraft.Status.CannotAdd, BrowseDraft.Status.OnKeepList -> CANNOT_ADD_MARK
     }
     val path = compact(relative(draft, path(entry)))
     val main = if (entry.row != null) palette.ok else palette.text
@@ -753,6 +751,9 @@ private fun detailLines(entry: BrowseDraft.Entry?, path: Path?, draft: BrowseDra
         ),
         Line(sourceText(shownPath(path(entry)))),
         Line(stateLine(stateNote(entry, draft).first)),
+        unlistedParent(path(entry), draft)?.let { parent ->
+            Line(cannotList(shownPath(parent.catalog.sourcePath), observationNote(parent.observation)), palette.warn)
+        },
     ) + (if (missing) MISSING_SUGGESTION.map(::Line) else listOf()) +
         listOfNotNull(
             Line(SIZE_AND_OWNERSHIP),
@@ -785,6 +786,17 @@ private fun listChanged(entry: BrowseDraft.Entry): List<Line> {
     )
 }
 
+/**
+ * The tool directory that holds `path` when a list suggests each subdirectory of it but Lighten could not list it. The
+ * tool directory has no row, so the Details of each directory inside it say so. A missing one is not a problem: the
+ * tool is not installed yet.
+ */
+private fun unlistedParent(path: Path, draft: BrowseDraft): CandidateDiscovery.Candidate? =
+    draft.discovery?.candidates.orEmpty().firstOrNull { c ->
+        c.catalog.listsSubdirectories && c.catalog.sourcePath == path.parent && c.observation.subdirectories == null
+            && c.observation.kind != CandidateObservation.Kind.PENDING && c.observation.kind != CandidateObservation.Kind.MISSING
+    }
+
 /** The Details line that says what Space does for `entry`, or why it does nothing. */
 private fun whatSpaceDoes(entry: BrowseDraft.Entry, draft: BrowseDraft): String = when (val status = draft.status(entry)) {
     is BrowseDraft.Status.InDraft -> CHANGE_IN_CONFIGURATION
@@ -797,7 +809,6 @@ private fun whatSpaceDoes(entry: BrowseDraft.Entry, draft: BrowseDraft): String 
     }
     is BrowseDraft.Status.LinkProblem -> cannotTakeOver(shownPath(status.link.path), linkProblem(status.problem))
     BrowseDraft.Status.CannotAdd -> CANNOT_ADD
-    BrowseDraft.Status.EachSubdirectory -> EACH_SUBDIRECTORY_IN_BROWSE
     BrowseDraft.Status.OnKeepList -> KEPT_IN_BROWSE
 }
 

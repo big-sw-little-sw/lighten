@@ -788,8 +788,9 @@ internal const val KEPT_IN_BROWSE =
 /** A relocation whose source a list now keeps in the home, in Browse's and the Workspace's details. */
 internal const val KEPT_IN_CONFIGURATION =
     "The list now keeps this directory in your home. It stays in your configuration until you take it out."
-internal const val EACH_SUBDIRECTORY_IN_BROWSE =
-    "The list suggests each subdirectory of this directory, not the directory itself. Browse shows them when it can list it."
+/** A tool directory that could not be listed, in the Details of each directory inside it; `why` is its row note. */
+internal fun cannotList(parent: String, why: String) =
+    "Lighten can't list $parent ($why), so Browse shows only the directories in it that a list names."
 /** A relocation of a whole parent that a list now suggests each subdirectory of. `keep` is the list's keep list. */
 internal fun nowEachSubdirectory(keep: List<String>) =
     "The list now suggests each subdirectory instead, and keeps the files in it" +

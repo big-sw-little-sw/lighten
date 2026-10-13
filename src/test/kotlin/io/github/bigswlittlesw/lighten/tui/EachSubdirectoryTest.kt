@@ -70,10 +70,10 @@ class EachSubdirectoryTest {
     }
 
     /**
-     * A subdirectory that a tool makes later is a new `○` row after checking again; nothing adds it. A parent that does
-     * not exist yet is a `−` row that says so, and Space does nothing on it.
+     * A subdirectory that a tool makes later is a new `○` row after checking again; nothing adds it. Before the tool is
+     * installed, the subdirectories the list names are `○` rows that Space adds, and the tool directory has no row.
      */
-    @Test fun aNewSubdirectoryIsANewRowAndAMissingParentSaysSo() {
+    @Test fun aNewSubdirectoryIsANewRowAndAToolNotInstalledCanBeAdded() {
         val root = fixture()
         config(root, """{"source-path": "${home(root, ".gradle/caches")}"}""")
         SetupDiscoveryFixture().use { workers ->
@@ -85,15 +85,32 @@ class EachSubdirectoryTest {
             key(ui, 'r'); await(workers, ui)
             assertTrue(row(render(ui), ".gradle/native").contains("○ .gradle/native"), render(ui))
             assertTrue(row(render(ui), ".gradle/caches").contains("● .gradle/caches"), render(ui))
-            val missing = row(render(ui), ".nvm")
-            assertTrue(missing.contains("− .nvm") && missing.contains("not created yet"), render(ui))
-            choose(ui, ".nvm")
-            assertFalse(render(ui).contains("Space:"), render(ui))
-            enter(ui)
-            assertTrue(details(ui).has(EACH_SUBDIRECTORY_IN_BROWSE), details(ui))
-            escape(ui)
+            val versions = row(render(ui), ".nvm/versions")
+            assertTrue(versions.contains("○ .nvm/versions") && versions.contains("not created yet"), render(ui))
+            assertFalse(Regex("[●○−⊘] \\.nvm( |┃)").containsMatchIn(render(ui)), render(ui))
+            choose(ui, ".nvm/versions"); key(ui, ' ')
+            assertTrue(row(render(ui), ".nvm/versions").contains("● .nvm/versions"), render(ui))
             assertEquals(before, disk(root))
         }
+    }
+
+    /**
+     * A tool directory that can't be listed has no row either. The Details of each directory in it that a list names
+     * say why other subdirectories may be missing.
+     */
+    @Test fun aToolDirectoryThatCannotBeListedSaysSoInDetails() {
+        val root = fixture()
+        Files.writeString(root.resolve("home/.nvm"), "a file")
+        config(root, "")
+        val before = disk(root)
+        SetupDiscoveryFixture().use { workers ->
+            val ui = browse(root, workers)
+            assertFalse(Regex("[●○−⊘] \\.nvm( |┃)").containsMatchIn(render(ui)), render(ui))
+            choose(ui, ".nvm/versions"); enter(ui)
+            assertTrue(details(ui).has(cannotList(home(root, ".nvm"), "not a directory")), details(ui))
+            escape(ui)
+        }
+        assertEquals(before, disk(root))
     }
 
     /**
@@ -187,7 +204,8 @@ class EachSubdirectoryTest {
               {"name": "Gradle", "category": "JVM", "directories": [{"path": ".gradle", "each-subdirectory": true, "keep": ["init.d"]}]},
               {"name": "Maven", "category": "JVM", "directories": [{"path": ".m2", "each-subdirectory": true}]},
               {"name": "Cargo", "category": "Rust", "directories": [{"path": ".cargo", "each-subdirectory": true}]},
-              {"name": "nvm", "category": "JavaScript", "directories": [{"path": ".nvm", "each-subdirectory": true, "keep": [".git"]}]},
+              {"name": "nvm", "category": "JavaScript",
+               "directories": [{"path": ".nvm/versions"}, {"path": ".nvm", "each-subdirectory": true, "keep": [".git"]}]},
               {"name": "uv", "category": "Python",
                "directories": [{"path": ".local/share/uv", "each-subdirectory": true, "keep": ["credentials"]}]}
             ]}
