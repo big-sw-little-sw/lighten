@@ -35,8 +35,7 @@
       "category": "Python",
       "directories": [
         {"path": ".cache/uv", "advice": "consider", "reason": "uv cache"},
-        {"path": ".local/share/uv/python", "advice": "consider", "reason": "uv-managed Python installations"},
-        {"path": ".local/share/uv/tools", "advice": "consider", "reason": "uv tools and uvx environments"}
+        {"path": ".local/share/uv", "each-subdirectory": true, "keep": ["credentials"], "advice": "consider", "reason": "uv-managed Python installations, tools and uvx environments"}
       ]
     },
     {
@@ -88,7 +87,7 @@
       "name": "Cargo",
       "category": "Rust",
       "directories": [
-        {"path": ".cargo", "advice": "consider", "reason": "Rust toolchain and package state"}
+        {"path": ".cargo", "each-subdirectory": true, "advice": "consider", "reason": "Cargo registry, Git checkouts, installed binaries and rustup proxies"}
       ]
     },
     {
@@ -137,15 +136,18 @@
       "name": "Maven",
       "category": "JVM",
       "directories": [
-        {"path": ".m2", "advice": "consider", "reason": "Maven local repository"}
+        {"path": ".m2", "each-subdirectory": true, "keep": [".develocity", ".gradle-enterprise"], "advice": "consider", "reason": "Maven local repository, wrapper distributions and Maven Daemon data"}
       ]
     },
     {
       "name": "Gradle",
       "category": "JVM",
       "directories": [
-        {"path": ".gradle/caches", "advice": "consider", "reason": "Gradle caches"},
-        {"path": ".gradle/wrapper", "advice": "consider", "reason": "Gradle wrapper distributions"}
+        {"path": ".gradle", "each-subdirectory": true, "keep": ["caches", "init.d", "develocity", "enterprise"], "advice": "consider", "reason": "Gradle wrapper distributions, daemons, downloaded JDKs and native libraries"},
+        {"path": ".gradle/caches/modules-2", "advice": "consider", "reason": "Gradle dependency cache"},
+        {"path": ".gradle/caches/transforms-4", "advice": "consider", "reason": "Gradle artifact transforms"},
+        {"path": ".gradle/caches/jars-9", "advice": "consider", "reason": "Gradle processed build script classes"},
+        {"path": ".gradle/caches/build-cache-1", "advice": "consider", "reason": "Gradle local build cache"}
       ]
     },
     {
@@ -199,7 +201,7 @@
       "name": "nvm",
       "category": "JavaScript",
       "directories": [
-        {"path": ".nvm", "advice": "consider", "reason": "Node.js versions managed by nvm"}
+        {"path": ".nvm", "each-subdirectory": true, "keep": [".git", ".github", "test", ".cache"], "advice": "consider", "reason": "Node.js versions and aliases managed by nvm"}
       ]
     },
     {

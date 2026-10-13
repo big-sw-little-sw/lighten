@@ -7,18 +7,23 @@ import java.time.Instant
 
 /**
  * What discovery saw at one suggested path, for Browse to show. It does not say whether moving the path is safe or
- * who owns it. Discovery never measures sizes or lists what is inside a directory.
+ * who owns it. Discovery never measures sizes. It lists only the parent of an each-subdirectory suggestion.
  *
  * `link` is the link at the path ([Kind.LINK]) or at the parent that blocks it ([Kind.BLOCKED_BY_LINK]), when one was
  * read.
+ *
+ * `subdirectories` are those found in the parent of an each-subdirectory suggestion, links to directories included,
+ * sorted. It is null for any other path, and when the parent could not be listed.
  */
 data class CandidateObservation(
     val path: Path, val kind: Kind, val link: Link?,
     val generation: Long, val observedAt: Instant, val diagnostics: List<Diagnostic>,
+    val subdirectories: List<Path>? = null,
 ) {
     init {
         require(path.isAbsolute && path == path.normalize()) { "Observation requires normalized absolute identity" }
         require(link == null || kind == Kind.LINK || kind == Kind.BLOCKED_BY_LINK) { "Only a link observation has a link" }
+        require(subdirectories.orEmpty().all { it.parent == path }) { "A subdirectory must be directly inside the path" }
     }
 
     /**

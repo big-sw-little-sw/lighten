@@ -781,6 +781,24 @@ internal fun observationDetail(detail: String, path: String) = "Note: $detail ·
 internal fun suggestedAround(path: String) = "Also suggested, around it: $path"
 internal fun suggestedInside(path: String) = "Also suggested, inside it: $path"
 internal const val CHANGE_IN_CONFIGURATION = "Target and rules can be changed in Configuration: press e."
+// A list's each-subdirectory suggestion: its parent, and the subdirectories that its keep list leaves in the home.
+internal const val KEPT_NOTE = "the list keeps this in your home"
+internal const val KEPT_IN_BROWSE =
+    "The list keeps this directory in your home, so Browse does not add it. To move it anyway, go back and press a."
+/** A relocation whose source a list now keeps in the home, in Browse's and the Workspace's details. */
+internal const val KEPT_IN_CONFIGURATION =
+    "The list now keeps this directory in your home. It stays in your configuration until you take it out."
+internal const val EACH_SUBDIRECTORY_IN_BROWSE =
+    "The list suggests each subdirectory of this directory, not the directory itself. Browse shows them when it can list it."
+/** A relocation of a whole parent that a list now suggests each subdirectory of. `keep` is the list's keep list. */
+internal fun nowEachSubdirectory(keep: List<String>) =
+    "The list now suggests each subdirectory instead, and keeps the files in it" +
+        (if (keep.isEmpty()) "" else " and " + keep.joinToString(", ")) + " in your home."
+internal fun changeOver(parent: String) =
+    "To change over, undo the move of $parent by hand, as Undo in the user guide says. Then add its subdirectories."
+/** An each-subdirectory suggestion as its list writes it, for Details' From line. */
+internal fun eachSubdirectoryOf(path: String, keep: List<String>) =
+    "each subdirectory of $path" + (if (keep.isEmpty()) "" else ", except " + keep.joinToString(", "))
 internal const val ADDING_ASKS = "Adding uses a matching target path; its rules ask each time."
 internal const val CANNOT_ADD =
     "Only a directory, or one not created yet, can be added. To type a path instead, go back and press a."

@@ -1,17 +1,18 @@
 #!/usr/bin/expect -f
-# Drives Browse on a pty to take over links made by hand, then saves.
+# Drives Browse on a pty: presses the given keys, then saves.
 #
-#   expect ci/native/takeover.exp <logfile> <command...>
+#   expect ci/native/browse.exp <logfile> <keys> <command...>
 #
-# The command must open the Workspace for an existing configuration whose suggestion list names the links.
-# e opens Configuration, b opens Browse, End shows the list's last rows, L takes over every link it can, Esc
-# goes back to the list, s and y replace the file, and q quits. The pty is 120x40, the size render.py starts at. The log gets a
-# "@@RESIZE 40x120@@" marker (the same size) after Browse checks the directories, after L and after the save, so
-# render.py prints those three screens. Prints one line of key=value results; exit status 0 when every step passed.
+# The command must open the Workspace for an existing configuration. e opens Configuration and b opens Browse.
+# Then each of <keys>, a space-separated list, is pressed: a character, or Home, End or Space. Esc goes back to the
+# list, s and y replace the file, and q quits. The pty is 120x40, the size render.py starts at. The log gets a
+# "@@RESIZE 40x120@@" marker (the same size) after each of <keys> and after the save, so render.py prints those
+# screens. Prints one line of key=value results; exit status 0 when every step passed.
 # Treat pty output as bytes so the log keeps the TUI's UTF-8 intact under any locale.
 encoding system iso8859-1
 set logfile [lindex $argv 0]
-set cmd [join [lrange $argv 1 end] " "]
+set keys [lindex $argv 1]
+set cmd [join [lrange $argv 2 end] " "]
 set lf [open $logfile w]
 fconfigure $lf -translation binary
 log_user 0
@@ -54,13 +55,16 @@ foreach {key secs} {e 1 b 3} {
   send $key
   pump $secs
 }
-# End: the list's last rows, where the suggestions under Other directories are.
-send "\033\[F"
-pump 1
-snapshot
-send "L"
-pump 1
-snapshot
+foreach key [split $keys " "] {
+  switch -- $key {
+    Home { send "\033\[H" }
+    End { send "\033\[F" }
+    Space { send " " }
+    default { send $key }
+  }
+  pump 1
+  snapshot
+}
 foreach key {"\033" s y} {
   send $key
   pump 1

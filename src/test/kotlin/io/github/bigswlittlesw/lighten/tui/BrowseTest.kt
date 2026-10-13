@@ -1025,6 +1025,10 @@ class BrowseTest {
         /** Whether the selected row of `screen` is the heading `heading` (mark and name) with `count`, such as `2 of 5 added`. */
         fun selectedGroup(screen: String, heading: String, count: String): Boolean =
             screen.lines().any { line -> line.matches(Regex(".*❯ *" + Pattern.quote(heading) + " +" + Pattern.quote(count) + ".*")) }
+        /** The list row that shows `path`, by its mark and path. */
+        fun row(screen: String, path: String): String =
+            screen.lines().firstOrNull { Regex("[●○−⊘] " + Pattern.quote(path) + "( |┃)").containsMatchIn(it) }
+                ?: throw AssertionError("No row for $path\n$screen")
         /** Whether the selected row of `screen` reads `row`: its marker and path. */
         fun selected(screen: String, row: String): Boolean =
             screen.lines().any { line -> line.matches(Regex(".*❯    " + Pattern.quote(row) + "(?: +.*|┃.*)")) }

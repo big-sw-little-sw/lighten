@@ -214,6 +214,8 @@ Beside each directory, a note says what Lighten found there:
   now.
 - `already a link`: the directory is a link. If you made the link, see "Take
   over links you made" below.
+- `the list keeps this in your home`: see "Each subdirectory of a tool's
+  directory" below.
 
 `Space` on a `●` row removes it again. A directory that you remove stays in
 the list until you leave Browse, so `Space` can add it back. Adding and
@@ -261,6 +263,39 @@ Some tools have clean commands, such as `sdk flush` or `deno clean`. These
 commands remove the link to a moved directory. The tool then creates a new
 directory in its place, and Lighten asks which directory to keep. The built-in
 list gives a caution about these tools.
+
+### Each subdirectory of a tool's directory
+
+Some tools keep their data and their settings in one directory, for example
+Gradle in `~/.gradle`. For such a tool, a list suggests each subdirectory of
+that directory, not the whole directory. Browse shows each subdirectory that
+it finds as a row of its own. Hidden directories count too.
+
+- Files in the tool's directory always stay in your home. For example,
+  `~/.gradle/gradle.properties` stays.
+- The list can keep some subdirectories in your home, for example the
+  `init.d` directory of Gradle. Browse marks such a subdirectory with `−` and
+  the note `the list keeps this in your home` beside it.
+- A tool can make a new subdirectory later. Browse then shows it as a new `○`
+  row. Lighten does not add it by itself.
+- If the tool's directory is not there yet, or Lighten cannot read it, Browse
+  shows the directory itself with `−` and a note that says why.
+
+The built-in list does this for Gradle, Maven, Cargo, nvm and uv.
+
+Your configuration can already move a whole tool directory, for example
+`~/.m2` from an older list. This relocation stays, and it keeps working.
+Browse shows each subdirectory with a dim `●` and a note. For example,
+`~/.m2/repository` has the note `inside ~/.m2, which Lighten manages` beside
+it. To move each subdirectory instead:
+
+1. Undo the move of `~/.m2` by hand, as "Undo" below says.
+2. Open Browse and add the subdirectories.
+3. Press `s` in Configuration to save.
+
+Your configuration can also move a subdirectory that the list now keeps in
+your home. This relocation stays too. Its row in Browse and its Details on the
+Workspace say that the list keeps it. Nothing moves by itself.
 
 ### Take over links you made
 
@@ -333,6 +368,13 @@ A suggestion list is a JSON file. For example:
         {"path": ".docker/buildx", "advice": "usually-unnecessary",
          "reason": "Small on our machines"}
       ]
+    },
+    {
+      "name": "Our build tool",
+      "directories": [
+        {"path": ".ourtool", "each-subdirectory": true, "keep": ["config"],
+         "reason": "Caches and downloaded toolchains"}
+      ]
     }
   ],
   "directories": [
@@ -358,6 +400,13 @@ A suggestion list is a JSON file. For example:
 - `caution` is optional. It is a warning about moving the directory, such as
   a command that undoes the move. Browse shows it after the reason, marked
   `⚠ Caution`.
+- `each-subdirectory` is optional. With `true`, Browse suggests each
+  subdirectory of `path`, not `path` itself. Files in `path` always stay in
+  your home.
+- `keep` is optional, and only an entry with `"each-subdirectory": true` can
+  have it. It names the subdirectories of `path` that stay in your home. Write
+  each one as one directory name without `/` in it, for example `config` in
+  the list above.
 - Comments (`//` and `/* */`) and trailing commas are allowed. Any other key
   is an error.
 - The file can be up to 1 MiB and list up to 10,000 directories.

@@ -95,7 +95,7 @@ class ConfigurationLoader {
         }
         ignoredRelocationProblem(relocations, ignoredSourcePaths)?.let { throw ConfigurationException(it) }
         val sharedList = lighten.suggestionList?.takeUnless { it.isJavaBlank() }?.let { resolvePath(it, "lighten.suggestion-list") }
-        return LightenConfiguration.of(targetRoot, relocations, ignoredSourcePaths, sharedList)
+        return LightenConfiguration.of(sourceRoot, targetRoot, relocations, ignoredSourcePaths, sharedList)
     }
 
     private fun relocation(

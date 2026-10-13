@@ -13,6 +13,7 @@ import io.github.bigswlittlesw.lighten.application.DecisionChoice
 import io.github.bigswlittlesw.lighten.application.LightenSession
 import io.github.bigswlittlesw.lighten.application.PlanBadge
 import io.github.bigswlittlesw.lighten.application.PlanRelocationItem
+import io.github.bigswlittlesw.lighten.config.CandidateCatalog
 import io.github.bigswlittlesw.lighten.fs.PathObservation
 import io.github.bigswlittlesw.lighten.fs.PathState
 import io.github.bigswlittlesw.lighten.fs.RelocationSourceState
@@ -387,6 +388,11 @@ internal object WorkspaceView {
             if (item.choiceAvoidsDirectory && !retained) add(Line(CHOOSE_AROUND_DIRECTORY))
             if (retained) add(Line(RESULTS_KEPT, palette.warn, false))
             item.plan.diagnostics.mapTo(this) { Line(it.message.shown(), palette.warn, false) }
+            // shortcut: only the built-in list, which needs no disk read; read your list too when users keep
+            // directories in their own lists.
+            if (CandidateCatalog.builtInKeeps(configured.savedConfiguration.sourceRoot, source)) {
+                add(Line(KEPT_IN_CONFIGURATION, palette.warn, false))
+            }
             if (item.deletesData()) add(Line(DELETES_DATA, palette.warn, true))
             if (!retained && decision != null) decision.offered.forEachIndexed { i, option ->
                 add(Line(""))

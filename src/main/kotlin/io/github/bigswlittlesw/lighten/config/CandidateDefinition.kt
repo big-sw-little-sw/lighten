@@ -13,12 +13,15 @@ import java.nio.file.Path
  * `category` is the app's, as this record's list gives it; only a directory with an app can have one.
  *
  * `caution` warns about moving this directory, for example a tool command that later replaces the link.
+ *
+ * With [eachSubdirectory], the record suggests each subdirectory of `sourcePath` except those on its keep list, and
+ * never `sourcePath` itself. The list cannot know the subdirectories: discovery lists them on this machine.
  */
 data class CandidateDefinition(
     val sourcePath: Path, val source: CandidateSource, val recordIndex: Int,
     val location: String, val originalPath: String,
     val app: String?, val category: String?, val advice: Advice?, val reason: String?,
-    val caution: String? = null,
+    val caution: String? = null, val eachSubdirectory: EachSubdirectory? = null,
 ) {
     init {
         require(
@@ -32,6 +35,25 @@ data class CandidateDefinition(
                 && (reason == null || !reason.isJavaBlank())
                 && (caution == null || !caution.isJavaBlank()),
         ) { "Optional text must be nonblank; app and category must be trimmed; a category needs an app" }
+    }
+
+    /** Whether this record names `path`: its own path, or with [eachSubdirectory] a subdirectory of it. */
+    fun names(path: Path): Boolean = path == sourcePath || eachSubdirectory != null && path.parent == sourcePath
+
+    /** Whether this record's keep list names `path`, a subdirectory of its path. */
+    fun keeps(path: Path): Boolean =
+        eachSubdirectory != null && path.parent == sourcePath && path.fileName.toString() in eachSubdirectory.keep
+
+    /** `keep` names the subdirectories that stay in the home, each as one path segment. */
+    @ConsistentCopyVisibility
+    data class EachSubdirectory private constructor(val keep: List<String>) {
+        init {
+            keep.forEach(::validateKeepName)
+        }
+
+        companion object {
+            fun of(keep: List<String>): EachSubdirectory = EachSubdirectory(keep.toList())
+        }
     }
 
     @Serializable

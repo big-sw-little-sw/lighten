@@ -540,7 +540,7 @@ through Browse's `x`, and the list does not show it.
   row. `b` opens Browse. Enter, → or Tab move to the fields.
 - When there are no relocations, the list says how to add one. In dim text
   under `Storage locations`, it shows `No directories yet.`, then `Press b to
-  pick from 61 built-in suggestions (JetBrains, pip, Cargo, Conan, …), or a to
+  pick from 63 built-in suggestions (JetBrains, pip, Cargo, Conan, …), or a to
   type one yourself.` The count is the number of directories in the built-in
   list, counted as Browse counts them. The examples are the first app of each
   of the list's first four categories. Both come from the list, never from the
@@ -577,7 +577,7 @@ through Browse's `x`, and the list does not show it.
   - **Target root**
   - **Suggestion list**. Its placeholder is `optional; adds to built-in list`,
     which fits the 32-cell field at 80 columns. Its help is "Lighten already
-    includes 61 suggestions for common tools (JetBrains, pip, Cargo, Conan, …).
+    includes 63 suggestions for common tools (JetBrains, pip, Cargo, Conan, …).
     Use this field only to add a list of your own, for example one shared by
     your team. Both lists are merged; yours wins where they overlap." The count
     and examples come from the list, as in the empty list.
@@ -698,7 +698,7 @@ screen never says "candidate" or "draft".
   ignored.` A heading's `1 of 2 added` does not count ignored rows. Enter on a
   heading does nothing.
 - Row notes, in plain words: `checking…`, `not created yet`, `not moved yet`
-  (a plain directory), `already a link`,
+  (a plain directory), `already a link`, `the list keeps this in your home`,
   `inside ~/.cache, which is a link`, `inside ~/.cache, which Lighten
   manages`, `not a directory`, `can't read: <reason>`, `usually not needed`,
   and a link's problem (below). A note that only says that the directory is
@@ -706,9 +706,10 @@ screen never says "candidate" or "draft".
   warning color, the other notes in the text color. A note names a parent with
   `~`, as every path on screen does.
 - **Take over** a link that the user made. Discovery reads each link's real
-  path, at the row's path or at the first linked parent above it, but never
-  lists what is there. A link whose real path is a directory outside the
-  source root can be taken over: the row is `○`, and `Space` (`Space: Take
+  path, at the row's path or at the first linked parent above it. It lists
+  what is there only for an each-subdirectory entry (below). A link whose real
+  path is a directory outside the source root can be taken over: the row is
+  `○`, and `Space` (`Space: Take
   over`) adds a relocation from the link to its real path, through chains and
   links on the way, so the planner finds it in sync. Details show the link's
   text when it differs (`written as …`). A target that the roots would derive
@@ -736,6 +737,34 @@ screen never says "candidate" or "draft".
     Enter on one says why.` `L` is off the help lines, which are
     full at 80 columns: the line over the list names it, and Help lists it
     under Do while it applies.
+- **Each subdirectory**: a list entry with `"each-subdirectory": true` names a
+  tool's directory, such as `~/.gradle`, and a keep list.
+  - Discovery lists that directory once per check, as part of its inspection
+    and inside the same time limit. It follows links, as the tool does. Each
+    subdirectory found is a row under the app, hidden ones too, in name order
+    after the rows already listed. Files are never rows.
+  - A subdirectory on the keep list is `−` with the note `the list keeps this
+    in your home`, and Space does nothing. A heading's count leaves it out, and
+    Space on the heading skips it without a message.
+  - The tool's directory itself is not a row while it can be listed. When it
+    is missing or can't be listed, it is a `−` row with the observation's note
+    (`not created yet`, `can't read: …`), and Details say that the list
+    suggests each subdirectory, not the directory itself.
+  - A new subdirectory is a new `○` row after a check. Nothing is added or
+    moved on its own.
+  - A subdirectory that is a link, or inside a linked parent, follows the take
+    over rules above.
+  - A relocation of the whole tool directory stays. Its row is `●`, its
+    subdirectories move with it (`inside ~/.m2, which Lighten manages`), and
+    its Details say that the list now suggests each subdirectory instead,
+    keeps the files and the keep list in the home, and how to change over by
+    hand.
+  - A relocation of a subdirectory that is now on the keep list stays. Its row
+    shows `the list keeps this in your home`, and its Details in Browse and on
+    the Workspace say that the list now keeps it in the home. The Workspace
+    reads only the built-in list's keep lists.
+  - Details' From line shows the entry as `each subdirectory of .gradle,
+    except init.d`.
 - When both lists name a directory, your list wins: the row shows its app group
   and advice. When both lists name an app with different categories, your
   list's category wins. When your list names an app without a category, the app
@@ -772,8 +801,8 @@ screen never says "candidate" or "draft".
   opens with `f` off, also on a first run.
 - `r` is **Check again**. It reads the lists again, and rows read `checking…`
   until they are checked. It never changes the configuration.
-- Discovery never stops the screen from responding, and it never lists the
-  contents of a directory. Size reads `not estimated`, and ownership reads `not
+- Discovery never stops the screen from responding. It lists the contents of a
+  directory only for an each-subdirectory entry, and it never reads a file. Size reads `not estimated`, and ownership reads `not
   evaluated`, until those features exist.
 - Enter on a directory opens **Details**. It shows whether the directory is in
   the configuration, its state, its full path, and how it overlaps other

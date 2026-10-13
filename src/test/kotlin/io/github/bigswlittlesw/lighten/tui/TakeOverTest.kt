@@ -14,6 +14,7 @@ import io.github.bigswlittlesw.lighten.tui.BrowseTest.Companion.enter
 import io.github.bigswlittlesw.lighten.tui.BrowseTest.Companion.escape
 import io.github.bigswlittlesw.lighten.tui.BrowseTest.Companion.key
 import io.github.bigswlittlesw.lighten.tui.BrowseTest.Companion.render
+import io.github.bigswlittlesw.lighten.tui.BrowseTest.Companion.row
 import io.github.bigswlittlesw.lighten.tui.BrowseTest.Companion.selected
 import io.github.bigswlittlesw.lighten.tui.BrowseTest.Companion.selectedGroup
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,7 +24,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.regex.Pattern
 
 /**
  * Browse takes over links that the user made: Space or `L` adds a relocation from the link to its real path, so the
@@ -479,11 +479,6 @@ class TakeOverTest {
     private fun details(ui: HeadlessTui): String = BrowseTest.all(ui).filterNot(Char::isWhitespace)
 
     private fun String.has(text: String): Boolean = contains(text.filterNot(Char::isWhitespace))
-
-    /** The list row that shows `path`, by its mark and path. */
-    private fun row(screen: String, path: String): String =
-        screen.lines().firstOrNull { Regex("[●○−⊘] " + Pattern.quote(path) + "( |┃)").containsMatchIn(it) }
-            ?: throw AssertionError("No row for $path\n$screen")
 
     /** The disk under `root`, but the file that a save writes. */
     private fun tree(root: Path): List<String> = diskTree(root, except = setOf(root.resolve("config.json")))

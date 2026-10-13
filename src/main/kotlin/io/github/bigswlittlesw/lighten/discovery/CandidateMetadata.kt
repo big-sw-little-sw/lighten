@@ -17,9 +17,9 @@ import java.time.Instant
 /**
  * Reads only the real path of the source root, the attributes of each path without following links, and the text
  * of a link. For a link it also reads its real path and what is there, so Browse can say whether a relocation can take
- * the link over as it is. It never lists a directory. It checks the paths under the root again to find a path
- * replaced while it reads. This can miss a change: Java's path-based calls cannot lock a path against a concurrent
- * rename.
+ * the link over as it is. It lists a directory only when asked, for the parent of an each-subdirectory suggestion, and
+ * never reads a file. It checks the paths under the root again to find a path replaced while it reads. This can miss
+ * a change: Java's path-based calls cannot lock a path against a concurrent rename.
  */
 internal class CandidateMetadata(private val access: Access = Access()) {
     fun anchor(root: Path): Anchor {
@@ -29,7 +29,11 @@ internal class CandidateMetadata(private val access: Access = Access()) {
         return Anchor(root, physical, attributes)
     }
 
-    fun inspect(anchor: Anchor, candidate: Path, generation: Long): CandidateObservation {
+    /**
+     * With `list`, it also lists the subdirectories of `candidate` when it is a directory or a link, or inside a
+     * linked parent. The listing follows links, as the tool that uses the directory does.
+     */
+    fun inspect(anchor: Anchor, candidate: Path, generation: Long, list: Boolean = false): CandidateObservation {
         require(candidate.startsWith(anchor.lexical) && candidate != anchor.lexical) {
             "Candidate must be below the chosen root"
         }
@@ -83,11 +87,14 @@ internal class CandidateMetadata(private val access: Access = Access()) {
                     attributes.isRegularFile -> Kind.REGULAR_FILE
                     else -> Kind.OTHER
                 }
+                val subdirectories = if (list && kind in LISTED) {
+                    access.subdirectories(anchor.physical.resolve(relative)).sorted().map { candidate.resolve(it.fileName) }
+                } else null
                 checkGuards(guards)
                 checkAnchor(anchor)
                 // Where the link points is outside the walk, so the guards do not cover it.
                 val link = text?.let { linkAt(anchor, anchor.lexical.resolve(relative.subpath(0, i + 1)), it) }
-                return observation(candidate, kind, link, generation, diagnostics)
+                return observation(candidate, kind, link, generation, diagnostics, subdirectories)
             }
             error("unreachable: a candidate strictly below the root has at least one name")
         } catch (e: IOException) {
@@ -167,8 +174,8 @@ internal class CandidateMetadata(private val access: Access = Access()) {
     private class Changed : IOException("it changed while checking")
 
     /**
-     * Has no call that lists a directory or reads a file, so discovery cannot do either.
-     * Open so tests can replace a path or make a call fail between two reads.
+     * Has no call that reads a file, so discovery cannot read one. Its one listing gives only directory names.
+     * Open so tests can replace a path or make a call fail or wait between two reads.
      */
     open class Access {
         open fun realPath(path: Path): Path = path.toRealPath()
@@ -177,8 +184,21 @@ internal class CandidateMetadata(private val access: Access = Access()) {
             Files.readAttributes(path, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
 
         open fun readLink(path: Path): Path = Files.readSymbolicLink(path)
+
+        /**
+         * The names in `directory` that are directories or links to directories, hidden ones included. A directory
+         * that is not there has none: a broken link has nothing to list.
+         */
+        open fun subdirectories(directory: Path): List<Path> = try {
+            Files.newDirectoryStream(directory).use { entries -> entries.filter { Files.isDirectory(it) }.map { it.fileName } }
+        } catch (_: NoSuchFileException) {
+            listOf()
+        }
     }
 }
+
+/** What can be listed: a directory, a link, or a path inside a linked parent, which the listing follows. */
+private val LISTED = setOf(Kind.DIRECTORY, Kind.LINK, Kind.BLOCKED_BY_LINK)
 
 private fun same(before: BasicFileAttributes, after: BasicFileAttributes): Boolean =
     before.isDirectory == after.isDirectory && before.isRegularFile == after.isRegularFile
@@ -189,4 +209,5 @@ private fun same(before: BasicFileAttributes, after: BasicFileAttributes): Boole
 
 private fun observation(
     path: Path, kind: Kind, link: Link?, generation: Long, diagnostics: List<Diagnostic>,
-): CandidateObservation = CandidateObservation(path, kind, link, generation, Instant.now(), diagnostics.toList())
+    subdirectories: List<Path>? = null,
+): CandidateObservation = CandidateObservation(path, kind, link, generation, Instant.now(), diagnostics.toList(), subdirectories)

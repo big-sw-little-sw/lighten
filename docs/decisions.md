@@ -117,7 +117,7 @@ Only the rule for the state observed now decides. **Only target** decides when t
 
 ### Browse takes over links the user made, as they are
 
-`Space` or `L` in Browse takes over a link that the user made: it adds a relocation from the link to where the link points, so the next plan finds it in sync. Nothing on disk changes, and only `s` writes the configuration. The word is "take over", because "adopt" already names Keep target. A row inside a linked parent takes over the parent, once, also when no list suggests it. Links inside the parent are never touched. Only a link whose real path is a directory outside the source root can be taken over, because a target in the home frees no space. The target is that real path, through chains and other links on the way, never the link's text, because the planner judges a source link by its real path. A loop counts as a broken link. Browse and Configuration check a new relocation's overlap with one rule: against each relocation in the draft, not against overlaps already among them, which the save reports. A link that changes after Browse took it over is blocked by the planner, as any link to somewhere else is. To tell these cases apart, discovery reads each link's real path and what is there, within the same time limit, but it still never lists a directory. A row inside a linked parent counts as found, so `f` shows it. A heading whose rows all move with a linked parent in the configuration has a dim `●`, as its rows do. "Inside the home" means inside the source root. Space on a heading takes over links too, each linked parent once. Why: users who had moved directories by hand saw `already a link` and could not manage them. (#245)
+`Space` or `L` in Browse takes over a link that the user made: it adds a relocation from the link to where the link points, so the next plan finds it in sync. Nothing on disk changes, and only `s` writes the configuration. The word is "take over", because "adopt" already names Keep target. A row inside a linked parent takes over the parent, once, also when no list suggests it. Links inside the parent are never touched. Only a link whose real path is a directory outside the source root can be taken over, because a target in the home frees no space. The target is that real path, through chains and other links on the way, never the link's text, because the planner judges a source link by its real path. A loop counts as a broken link. Browse and Configuration check a new relocation's overlap with one rule: against each relocation in the draft, not against overlaps already among them, which the save reports. A link that changes after Browse took it over is blocked by the planner, as any link to somewhere else is. To tell these cases apart, discovery reads each link's real path and what is there, within the same time limit. It lists a directory only for an each-subdirectory entry. A row inside a linked parent counts as found, so `f` shows it. A heading whose rows all move with a linked parent in the configuration has a dim `●`, as its rows do. "Inside the home" means inside the source root. Space on a heading takes over links too, each linked parent once. Why: users who had moved directories by hand saw `already a link` and could not manage them. (#245)
 
 - `[skipped: taking over or repairing a broken link, add when users ask to manage broken links from Browse]`
 - `[skipped: comparing a draft target spelled through a link with a take-over's real path in Browse, add when users report a row that Browse offers and the Workspace then blocks]`
@@ -288,7 +288,7 @@ Each app can name a `category`. Browse shows categories, apps and directories in
 
 A directory goes into the built-in list only after a test in a container. The test installs the tool, relocates the directory with `lighten apply`, uses the tool again and cleans it with the tool's own commands. The paths come from the tool's documentation or source code. The list names the cache or install directory. It does not name a parent directory that also holds the tool, its shims or its settings. The exception is a tool that needs the whole parent on one filesystem (Volta). If a tool's clean command replaces the link with a directory, the entry has a `caution`, which Browse shows in Details. Why: the tool must continue to work after the move. (#165, #176, #191)
 
-Credentials, configuration and startup scripts that a shell sources stay in the home. The list names the subdirectories that hold data. Two entries never overlap: uv's entry is `.local/share/uv/python`, not `.local/share/uv`, so `credentials` stays in the home. Why: the home is shared and backed up, and a broken link to a startup script breaks the shell on another machine. (#249)
+Credentials, configuration and startup scripts that a shell sources stay in the home. The list names the subdirectories that hold data. Two entries never overlap: uv's entry suggests each subdirectory of `.local/share/uv` except `credentials`, so `credentials` stays in the home. Why: the home is shared and backed up, and a broken link to a startup script breaks the shell on another machine. (#249, #250)
 
 - `[skipped: conda, mamba and micromamba directories, add when users ask for a specific install layout]`
 - `[skipped: .cache/mise, add when users report it growing large]`
@@ -375,6 +375,24 @@ These entries were replaced or are history only. They use the names of their tim
 - 2026-10-07: Browse groups apps by ecosystem. The level is now "category" (#174).
 - 2026-10-07: Rename HomeLight to Lighten. The repository rename that it left open is done.
 - 2026-10-10: A source link is judged by its text, so Browse refuses a chain. Replaced by real paths (#247).
+
+### A tool directory is listed as each subdirectory, except a keep list
+
+A list entry with `"each-subdirectory": true` names a tool's directory and a `keep` list. Browse lists that directory once per check, as part of its inspection and inside the same time limit, and shows each subdirectory found as a suggestion of its own. Hidden subdirectories count. Files are never suggested, so `keep` names only directories, each as one path segment. A new subdirectory is a new `○` row, and nothing is added or moved on its own. A relocation made before the list changed stays as it is: a whole tool directory keeps working, and Details say how to change over by hand; a directory now on the keep list stays, and Browse and the Workspace say that the list keeps it. Why: the list keeps up when a tool adds a data directory, and credentials, configuration and startup scripts still stay in the home. (#250)
+
+The built-in entries of this kind, each after a container test:
+
+- Gradle `.gradle`, keeping `caches`, `init.d`, `develocity` and `enterprise`. The last two hold Develocity access keys. Gradle 8.14 to 9.8 cannot open the configuration cache's keystore when `caches` or a version directory in it is a link, so `caches` stays, and four leaf entries name the large directories inside it: `modules-2`, `transforms-4`, `jars-9` and `build-cache-1`.
+- Maven `.m2`, keeping `.develocity` and `.gradle-enterprise`, which hold Develocity access keys.
+- Cargo `.cargo`, keeping nothing: its settings, credentials and `env` are files. `bin` holds the rustup proxies, which go with `.rustup`.
+- nvm `.nvm`, keeping its checkout (`.git`, `.github`, `test`) and `.cache`, because `nvm cache clear` deletes the link and makes a directory.
+- uv `.local/share/uv`, keeping `credentials`.
+
+- `[skipped: your list's keep lists on the Workspace, which reads only the built-in list without a disk read; add when users keep directories in their own lists]`
+- `[skipped: a row for a tool directory with no subdirectories, add when users ask why an installed tool has no rows]`
+- `[skipped: a guided change-over from a whole tool directory to its subdirectories, add when users ask]`
+- `[skipped: converting SDKMAN, pixi, JBang, Conan, xmake, PlatformIO, mise, asdf, pyenv, rbenv and Zed; their leaf entries already name the data, and some of their directories hold sourced scripts, add when a tool adds a data directory that a leaf misses]`
+- `[skipped: an entry kind for each subdirectory two levels down, such as .gradle/caches/*, add when Gradle renames its versioned cache directories]`
 
 ## How to add
 
