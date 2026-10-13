@@ -445,7 +445,7 @@ class CandidateCatalogTest {
     @Test fun bundledResourcePreservesPathsAndDescriptionsWithExplicitConsiderAdvice() {
         val snapshot = CandidateCatalog.bundled(HOME)
         assertTrue(snapshot.accepted(), snapshot.diagnostics.toString())
-        assertEquals(59, snapshot.definitions.size)
+        assertEquals(61, snapshot.definitions.size)
         assertEquals(listOf(
                 ".cache/JetBrains|Editors|JetBrains|JetBrains caches",
                 ".vscode-server|Editors|VS Code|VS Code server",
@@ -454,12 +454,13 @@ class CandidateCatalogTest {
                 ".local/share/zed/extensions|Editors|Zed|Zed extensions",
                 ".cache/pip|Python|pip|pip cache",
                 ".cache/uv|Python|uv|uv cache",
-                ".local/share/uv|Python|uv|uv-managed Python installations",
+                ".local/share/uv/python|Python|uv|uv-managed Python installations",
                 ".local/share/uv/tools|Python|uv|uv tools and uvx environments",
                 ".cache/pypoetry|Python|Poetry|Poetry cache",
                 ".cache/pdm|Python|PDM|PDM cache",
                 ".cache/virtualenv|Python|virtualenv|virtualenv cache",
-                ".local/pipx/venvs|Python|pipx|pipx virtual environments",
+                ".local/share/pipx/venvs|Python|pipx|pipx virtual environments",
+                ".local/pipx/venvs|Python|pipx|pipx virtual environments in the older location, which pipx still uses when it exists",
                 ".cache/rattler|Python|pixi|pixi package cache, shared with other rattler-based tools",
                 ".cache/pixi|Python|pixi|pixi package cache, used instead of .cache/rattler when this directory exists",
                 ".pixi/envs|Python|pixi|pixi global tool environments",
@@ -496,6 +497,7 @@ class CandidateCatalogTest {
                 ".cache/electron|JavaScript|Electron|Electron downloads",
                 ".cache/electron-builder|JavaScript|Electron|electron-builder downloads",
                 ".cache/go-build|Go|Go|Go build cache",
+                "go/pkg|Go|Go|Go module cache and downloaded Go toolchains",
                 ".rbenv/versions|Ruby|rbenv|Ruby versions installed by rbenv",
                 "Android/Sdk|Android|Android SDK|Android SDK, with the NDK and emulator system images",
                 ".android/avd|Android|Android emulator|Android emulator virtual devices",
@@ -552,7 +554,7 @@ class CandidateCatalogTest {
                 val result = catalogClass.getMethod("bundled", Path::class.java).invoke(catalog, HOME)
                 assertEquals(variant == "valid", result.javaClass.getMethod("accepted").invoke(result))
                 val definitions = result.javaClass.getMethod("getDefinitions").invoke(result) as List<*>
-                assertEquals(if (variant == "valid") 59 else 0, definitions.size)
+                assertEquals(if (variant == "valid") 61 else 0, definitions.size)
             }
         }
     }

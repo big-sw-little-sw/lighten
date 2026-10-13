@@ -288,6 +288,8 @@ Each app can name a `category`. Browse shows categories, apps and directories in
 
 A directory goes into the built-in list only after a test in a container. The test installs the tool, relocates the directory with `lighten apply`, uses the tool again and cleans it with the tool's own commands. The paths come from the tool's documentation or source code. The list names the cache or install directory. It does not name a parent directory that also holds the tool, its shims or its settings. The exception is a tool that needs the whole parent on one filesystem (Volta). If a tool's clean command replaces the link with a directory, the entry has a `caution`, which Browse shows in Details. Why: the tool must continue to work after the move. (#165, #176, #191)
 
+Credentials, configuration and startup scripts that a shell sources stay in the home. The list names the subdirectories that hold data. Two entries never overlap: uv's entry is `.local/share/uv/python`, not `.local/share/uv`, so `credentials` stays in the home. Why: the home is shared and backed up, and a broken link to a startup script breaks the shell on another machine. (#249)
+
 - `[skipped: conda, mamba and micromamba directories, add when users ask for a specific install layout]`
 - `[skipped: .cache/mise, add when users report it growing large]`
 - `[skipped: legacy .fnm/node-versions, add when users with old installs ask]`
@@ -299,6 +301,8 @@ A directory goes into the built-in list only after a test in a container. The te
 - `[skipped: .cache/bazelisk, add when users report versions piling up]`
 - `[skipped: .local/share/Google (Android Studio plugins), add when users report it large]`
 - `[skipped: keeping hard links when moving, add when users move Hunter or similar caches and ask about the space]`
+- `[skipped: a caution on .local/share/uv/tools, add when users report the conflict after they uninstall their last uv tool]`
+- `[skipped: .local/share/JetBrains/Toolbox/apps; Toolbox follows the link, lists each IDE twice, and uninstalling one copy deletes the files of both; add when Toolbox keeps the link path]`
 
 ## TUI
 
@@ -333,7 +337,7 @@ The rules are in [`tui-design.md`](tui-design.md), which holds only the current 
   - `[skipped: own words for errors the OS reports only as a reason (no space left, read-only filesystem), add when a user hits one]`
 - **Configuration** has labels next to its fields, and it opens Browse on a first run. ([§7](tui-design.md#7-configuration), #114, #189)
   - `[skipped: selecting the first added relocation when the first-run Browse closes, add when users miss where their picks went]`
-- **Browse** is a list of categories, apps and directories with plain marks. It always shows its lists, removes old results while it checks, and can show only what it finds on this machine. It takes over links the user made, and a heading with nothing to add says why. ([§8](tui-design.md#8-browse), #115, #165, #190, #245)
+- **Browse** is a list of categories, apps and directories with plain marks. It always shows its lists, removes old results while it checks, and can show only what it finds on this machine. It takes over links the user made, and a heading with nothing to add says why. A plain directory has the note `not moved yet`, so every directory that Browse finds has a note. ([§8](tui-design.md#8-browse), #115, #165, #190, #245, #249)
   - `[skipped: showing previous results while checking again, add when re-checks are slow enough that blank rows annoy users]`
   - `[skipped: per-row list history, add when users need to know a list used to suggest a row]`
   - `[skipped: PageUp/PageDown in Browse, add when suggestion lists grow past a few screens]`

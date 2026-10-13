@@ -583,10 +583,9 @@ private fun directoryRow(entry: BrowseDraft.Entry, draft: BrowseDraft, selected:
     }
     val path = compact(relative(draft, path(entry)))
     val main = if (entry.row != null) palette.ok else palette.text
-    val directory = entry.discovery?.observation?.kind == CandidateObservation.Kind.DIRECTORY
     val notes = listOfNotNull(
         (IGNORED_NOTE to palette.text).takeIf { entry.ignored },
-        stateNote(entry, draft).takeIf { !directory },
+        stateNote(entry, draft),
         (USUALLY_NOT_NEEDED_NOTE to palette.text)
             .takeIf { definitions(entry).firstOrNull()?.advice == CandidateDefinition.Advice.USUALLY_UNNECESSARY },
     )

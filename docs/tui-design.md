@@ -540,7 +540,7 @@ through Browse's `x`, and the list does not show it.
   row. `b` opens Browse. Enter, → or Tab move to the fields.
 - When there are no relocations, the list says how to add one. In dim text
   under `Storage locations`, it shows `No directories yet.`, then `Press b to
-  pick from 59 built-in suggestions (JetBrains, pip, Cargo, Conan, …), or a to
+  pick from 61 built-in suggestions (JetBrains, pip, Cargo, Conan, …), or a to
   type one yourself.` The count is the number of directories in the built-in
   list, counted as Browse counts them. The examples are the first app of each
   of the list's first four categories. Both come from the list, never from the
@@ -577,7 +577,7 @@ through Browse's `x`, and the list does not show it.
   - **Target root**
   - **Suggestion list**. Its placeholder is `optional; adds to built-in list`,
     which fits the 32-cell field at 80 columns. Its help is "Lighten already
-    includes 59 suggestions for common tools (JetBrains, pip, Cargo, Conan, …).
+    includes 61 suggestions for common tools (JetBrains, pip, Cargo, Conan, …).
     Use this field only to add a list of your own, for example one shared by
     your team. Both lists are merged; yours wins where they overlap." The count
     and examples come from the list, as in the empty list.
@@ -654,8 +654,8 @@ screen never says "candidate" or "draft".
   ```
   ┃ ◐ Python                            1 of 3 added                ┃
   ┃   ◐ uv                              1 of 2 added                ┃
-  ┃❯    ● .local/share/uv                                           ┃
-  ┃     ○ .local/share/uv/tools                                     ┃
+  ┃❯    ● .local/share/uv/python        not moved yet               ┃
+  ┃     ○ .local/share/uv/tools         not moved yet               ┃
   ┃   ○ pixi                            0 of 1 added                ┃
   ┃     ○ .pixi/envs                    not created yet             ┃
   ┃ − Other directories                 all links with problems     ┃
@@ -697,7 +697,8 @@ screen never says "candidate" or "draft".
   overlaps ~/.cache.`, `Skipped 1 that can't be added.`, `Skipped 1 you
   ignored.` A heading's `1 of 2 added` does not count ignored rows. Enter on a
   heading does nothing.
-- Row notes, in plain words: `checking…`, `not created yet`, `already a link`,
+- Row notes, in plain words: `checking…`, `not created yet`, `not moved yet`
+  (a plain directory), `already a link`,
   `inside ~/.cache, which is a link`, `inside ~/.cache, which Lighten
   manages`, `not a directory`, `can't read: <reason>`, `usually not needed`,
   and a link's problem (below). A note that only says that the directory is

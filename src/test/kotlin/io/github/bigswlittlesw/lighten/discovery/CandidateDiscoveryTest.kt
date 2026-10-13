@@ -41,14 +41,16 @@ class CandidateDiscoveryTest {
 
     @Test fun independentlyLoadsRealSharedFileAndRetainsProvenanceAndOverlap() {
         val shared = temporary.resolve("shared.json")
-        Files.copy(Path.of("src/test/resources/suggestion-lists/shared.json"), shared)
-        Files.createDirectories(temporary.resolve(".local/share/uv/tools"))
+        // The built-in list has no nested entries, so your list adds one under its `.cache/uv`.
+        Files.writeString(shared, Files.readString(Path.of("src/test/resources/suggestion-lists/shared.json"))
+            .replace("{\"path\": \"team-cache\"", "{\"path\": \".cache/uv/archive-v0\"}, {\"path\": \"team-cache\""))
+        Files.createDirectories(temporary.resolve(".cache/uv/archive-v0"))
         CandidateDiscovery().use { discovery ->
             discovery.refresh(temporary, shared)
             val result = awaitResult(discovery, ::finished)
             assertTrue(result.sources.all { s -> s.status == SourceStatus.CURRENT })
-            val child = row(result, temporary.resolve(".local/share/uv/tools"))
-            assertEquals(listOf(temporary.resolve(".local/share/uv")), child.ancestors)
+            val child = row(result, temporary.resolve(".cache/uv/archive-v0"))
+            assertEquals(listOf(temporary.resolve(".cache/uv")), child.ancestors)
             val maven = row(result, temporary.resolve(".m2"))
             assertEquals(2, maven.catalog.definitions.size)
             // Your list's definition comes first, so its app and advice win.
